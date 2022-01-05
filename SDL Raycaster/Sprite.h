@@ -7,14 +7,21 @@
 class Sprite
 {
 private:
-	Texture m_texture;
+	Texture* m_texture;
+	int m_textureWidth{};
+	int m_textureHeight{};
 public:
 	float x{};
 	float y{};
+	float noSqrtDistance{};		// Stores the distance calculated without the sqrt, so only useful for sorting
 
-	Sprite(const std::string& fileName, int pixelFormat, float s_x, float s_y);
+	Sprite() {}
+	Sprite(Texture* texture, float s_x, float s_y);
 
 	uint32_t operator[](int i);
+
+	int textureWidth();
+	int textureHeight();
 };
 
 #endif

@@ -7,6 +7,7 @@
 #include "SDL_ttf.h"
 #include "SDL_mixer.h"
 #include <vector>
+#include <algorithm>
 
 // Headers created by me which contain useful classes
 #include "Texture.h"
@@ -20,14 +21,14 @@ int projectionPlaneCenter{ height / 2 };	// The vertical center of the projectio
 
 bool DEBUG{ false };	// Set equal to true for an overhead view of the scene
 
-float zBuffer[width];	// Holds the depth value of the wall for each column
+float zBuffer[width];
 
 int gridSize{ 64 };		// Side length of an individual grid block
 int gridWidth{ 20 };	// Width of the whole map in terms of grid blocks
 int gridHeight{ 20 };	// Height of the whole map in terms of grid blocks
 std::string gridMap{};	// String which stores the map
 
-// std::vector<Sprite> sprite{ {"Best Resume Photo No background.png", SDL_PIXELFORMAT_RGBA8888, 320.0f, 320.0f} };
+std::vector<Sprite> sprites{};
 
 int FOV{ 60 };							// Field of view of player
 int distanceToProjectionPlane{ 277 };	// Distance of the "camera" (player) to the "projection plane" (screen)
@@ -38,9 +39,9 @@ int playerRadius{ 15 };					// Radius of player
 // The "adjusted" distance to the projection plane, used so that I can adjust the field of view
 float adjustedDistanceToProjectionPlane{ (width / 2) / fabs(tanf((FOV / 2) * (M_PI / 180.0f))) };	
 
-float theta{ 0.0f };					// Angle of the player
-float playerX{ 350.0f };				// x-coordinate of the player in pixels, not grid coordinates
-float playerY{ 350.0f };				// y-coordinate of the player in pixels, not grid coordinates
+float theta{ -2.30001f };					// Angle of the player
+float playerX{ 432.224f };				// x-coordinate of the player in pixels, not grid coordinates
+float playerY{ 353.454f };				// y-coordinate of the player in pixels, not grid coordinates
 float playerSpeed{ 100.0f };			// Speed at which the player moves
 float playerTurnSpeed{ 75.0f };			// Speed with which the player can turn
 float playerLookUpSpeed{ 175.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
@@ -170,6 +171,13 @@ int main(int argc, char* argv[])
 	Texture wallTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture floorTexture{ "colorstone.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture ceilingTexture{ "wood.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture spriteTexture{ "greenlight.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture spriteTexture2{ "pillar.png", SDL_PIXELFORMAT_RGBA8888 };
+
+	sprites.push_back(Sprite{ &spriteTexture, gridSize * 16.0f, gridSize * 5.0f });
+	sprites.push_back(Sprite{ &spriteTexture, 350.0f + 127.0f, 350.0f });
+	sprites.push_back(Sprite{ &spriteTexture2, 11.5f * gridSize, 13.5f * gridSize });
+	sprites.push_back(Sprite{ &spriteTexture2, 18.5f * gridSize, 13.5f * gridSize });
 
 	// Create the map
 	gridMap += "####################";
@@ -177,7 +185,7 @@ int main(int argc, char* argv[])
 	gridMap += "#####-#####--------#";
 	gridMap += "#------------------#";
 	gridMap += "#------------------#";
-	gridMap += "#-##---#-##--------#";
+	gridMap += "#-##-----##--------#";
 	gridMap += "#-##-----##--------#";
 	gridMap += "#--------##--------#";
 	gridMap += "#--####--##--------#";
@@ -192,6 +200,7 @@ int main(int argc, char* argv[])
 	gridMap += "#-##--#--##--------#";
 	gridMap += "#--####--##--####--#";
 	gridMap += "####################";
+
 
 	// Fill the tables with the trig value of each possible ray angles (3600 of them with a 60 degree FOV and width of 600)
 	//for (int i{ 0 }; i < 360 / FOV * width; i++)
@@ -267,7 +276,7 @@ int main(int argc, char* argv[])
 
 		// Output FPS and angle info
 		std::cout << "FPS: " << FPS << '\n';
-		std::cout << "Angle: " << theta << '\n';
+		std::cout <<"X: " << playerX << ", Y: " << playerY <<  ", Angle: " << theta << '\n';
 
 		// Copy the map to the console
 		for (int y{ 0 }; y < gridHeight; y++)
@@ -322,28 +331,32 @@ int main(int argc, char* argv[])
 		else if (keystate[SDL_SCANCODE_D])
 			theta -= playerTurnSpeed * deltaTime;
 
-		// Move player up and down
+		// Move player view up and down
 		if (keystate[SDL_SCANCODE_DOWN])
 			projectionPlaneCenter -= playerLookUpSpeed * deltaTime;
 		else if (keystate[SDL_SCANCODE_UP])
 			projectionPlaneCenter += playerLookUpSpeed * deltaTime;
 
+		// Make sure some part of the projection plane is always over the middle of the screen
 		if (projectionPlaneCenter <= 0)
 			projectionPlaneCenter = 0;
 		else if (projectionPlaneCenter >= height)
 			projectionPlaneCenter = height;
 
-
+		// Move player up and down
 		if (keystate[SDL_SCANCODE_SPACE])
 			playerHeight++;
 		else if (keystate[SDL_SCANCODE_LSHIFT])
 			playerHeight--;
 
-		if (playerHeight > gridSize)
+		// Make sure the player doesn't fly above or below the world
+		if (playerHeight >= gridSize)
 			playerHeight = gridSize - 1;
 		else if (playerHeight <= 0)
 			playerHeight = 1;
 
+
+		// Collision detection
 		int playerGridOffsetX{ static_cast<int>(playerX) - (gridX * gridSize) };
 		int playerGridOffsetY{ static_cast<int>(playerY) - (gridY * gridSize) };
 
@@ -681,8 +694,11 @@ int main(int argc, char* argv[])
 			if (lighting < 0)
 				lighting = 0;
 
+
 			// Correct fish-eye distortion for the actual rendering of the walls
 			distance *= cosf(radians(theta - rayAngle));
+
+			zBuffer[x] = distance;
 
 			// Calculate the height of the wall
 			int wallHeight{ static_cast<int>((distanceToProjectionPlane * gridSize) / distance) };
@@ -811,6 +827,62 @@ int main(int argc, char* argv[])
 					lighting = 0.0f;
 
 				screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
+			}
+		}
+
+		for (int i{ 0 }; i < sprites.size(); i++)
+			sprites[i].noSqrtDistance = (playerX - sprites[i].x) * (playerX - sprites[i].x) + (playerY - sprites[i].y) * (playerY - sprites[i].y);
+
+		// Sort sprites by distance
+		std::sort(sprites.begin(), sprites.end(), [](const Sprite& a, const Sprite& b)
+			{
+				return (a.noSqrtDistance < b.noSqrtDistance ? true : false);
+			}
+		);
+
+		for (int i{ 0 }; i < sprites.size(); i++)
+		{
+			float spriteAngle{ degrees(atan2f(sprites[i].y - playerY, sprites[i].x - playerX)) };
+			spriteAngle += theta;
+
+			spriteAngle = getCoterminalAngle(spriteAngle);
+			if (spriteAngle > 90.0f && spriteAngle < 270.0f)
+				continue;
+
+			int x{ static_cast<int>(adjustedDistanceToProjectionPlane * tanf(radians(spriteAngle)) + (width / 2)) };
+
+			float distance{ sqrtf(sprites[i].noSqrtDistance) };
+			distance *= cosf(radians(spriteAngle));
+
+			int spriteSize{ static_cast<int>((distanceToProjectionPlane * gridSize) / distance) };
+			int halfSpriteSize{ spriteSize / 2 };
+
+			int bottomOfSprite{ projectionPlaneCenter + static_cast<int>((distanceToProjectionPlane * playerHeight) / distance) };
+			int topOfSprite{ bottomOfSprite - spriteSize };
+
+			int leftOfSprite{ x - halfSpriteSize };
+			int rightOfSprite{ x + halfSpriteSize };
+
+			int minBetweenRightOfSpriteAndWidth{ std::min(rightOfSprite, width) };
+			int minBetweenBottomOfSpriteAndHeight{ std::min(bottomOfSprite, height) };
+			for (int screenX{ std::max(leftOfSprite, 0) }; screenX < minBetweenRightOfSpriteAndWidth; screenX++)
+			{
+				float normX{ (screenX - leftOfSprite) / static_cast<float>(spriteSize) };
+				if (!(zBuffer[screenX] < distance))
+				{
+					for (int y{ std::max(topOfSprite, 0) }; y < minBetweenBottomOfSpriteAndHeight; y++)
+					{
+						float normY{ (y - topOfSprite) / static_cast<float>(spriteSize) };
+
+						int textureX{ static_cast<int>(normX * sprites[i].textureWidth()) };
+						int textureY{ static_cast<int>(normY * sprites[i].textureHeight()) };
+
+						uint32_t color{ sprites[i][textureY * sprites[i].textureWidth() + textureX] };
+
+						if (color != 255)
+							screen[y * width + screenX] = color;
+					}
+				}
 			}
 		}
 
