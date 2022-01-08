@@ -21,6 +21,7 @@ int projectionPlaneCenter{ height / 2 };	// The vertical center of the projectio
 
 bool DEBUG{ false };	// Set equal to true for an overhead view of the scene
 
+// Stores the distance to the scene at each column
 float zBuffer[width];
 
 int gridSize{ 64 };		// Side length of an individual grid block
@@ -28,6 +29,7 @@ int gridWidth{ 20 };	// Width of the whole map in terms of grid blocks
 int gridHeight{ 20 };	// Height of the whole map in terms of grid blocks
 std::string gridMap{};	// String which stores the map
 
+// Vector which holds all the sprites
 std::vector<Sprite> sprites{};
 
 int FOV{ 60 };							// Field of view of player
@@ -37,7 +39,7 @@ int playerHeight{ gridSize / 2 };		// Height of player (typically half of gridSi
 int playerRadius{ 15 };					// Radius of player
 
 // The "adjusted" distance to the projection plane, used so that I can adjust the field of view
-float adjustedDistanceToProjectionPlane{ (width / 2) / fabs(tanf((FOV / 2) * (M_PI / 180.0f))) };	
+float adjustedDistanceToProjectionPlane{ (width / 2) / fabs(tanf((FOV / 2) * (M_PI / 180.0f))) };
 
 float theta{ -2.30001f };					// Angle of the player
 float playerX{ 432.224f };				// x-coordinate of the player in pixels, not grid coordinates
@@ -168,16 +170,20 @@ int main(int argc, char* argv[])
 
 	const Uint8* keystate{};
 
+	// Textures for texturing the ceiling, floor, walls, and sprites
 	Texture wallTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture floorTexture{ "colorstone.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture ceilingTexture{ "wood.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture spriteTexture{ "greenlight.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture spriteTexture2{ "pillar.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture spriteTexture3{ "g2.png", SDL_PIXELFORMAT_RGBA8888 };
 
+	// Add sprites to the sprite array
 	sprites.push_back(Sprite{ &spriteTexture, gridSize * 16.0f, gridSize * 5.0f });
 	sprites.push_back(Sprite{ &spriteTexture, 350.0f + 127.0f, 350.0f });
 	sprites.push_back(Sprite{ &spriteTexture2, 11.5f * gridSize, 13.5f * gridSize });
 	sprites.push_back(Sprite{ &spriteTexture2, 18.5f * gridSize, 13.5f * gridSize });
+	sprites.push_back(Sprite{ &spriteTexture3, 17.5f * gridSize, 15.5f * gridSize });
 
 	// Create the map
 	gridMap += "####################";
@@ -189,8 +195,8 @@ int main(int argc, char* argv[])
 	gridMap += "#-##-----##--------#";
 	gridMap += "#--------##--------#";
 	gridMap += "#--####--##--------#";
-	gridMap += "##########--########";
-	gridMap += "########---#########";
+	gridMap += "#-########--########";
+	gridMap += "#-######---#########";
 	gridMap += "#---#----##--------#";
 	gridMap += "#-#---#########-####";
 	gridMap += "#####-----#--------#";
@@ -276,7 +282,7 @@ int main(int argc, char* argv[])
 
 		// Output FPS and angle info
 		std::cout << "FPS: " << FPS << '\n';
-		std::cout <<"X: " << playerX << ", Y: " << playerY <<  ", Angle: " << theta << '\n';
+		std::cout << "X: " << playerX << ", Y: " << playerY << ", Angle: " << theta << '\n';
 
 		// Copy the map to the console
 		for (int y{ 0 }; y < gridHeight; y++)
@@ -382,7 +388,7 @@ int main(int argc, char* argv[])
 				playerY -= ySpeed * deltaTime;
 		}
 
-		if(DEBUG)
+		if (DEBUG)
 			floorPoints.clear();
 
 		// Send a ray out into the scene for each vertical row of pixels in the screen array
@@ -525,7 +531,7 @@ int main(int argc, char* argv[])
 			}
 
 			// Once the intersection point has been found, save it for debugging purposes
-			if(DEBUG)
+			if (DEBUG)
 				aPoints[x] = point{ aX, aY };
 
 			// CALCULATE VERTICAL INTERSECTIONS (very similar to calculating horizontal intersections)
@@ -630,7 +636,7 @@ int main(int argc, char* argv[])
 			}
 
 			// Again, once the intersection point has been found, save it for debugging purposes
-			if(DEBUG)
+			if (DEBUG)
 				bPoints[x] = point{ bX, bY };
 
 			// The column the ray hits on a wall
@@ -640,7 +646,7 @@ int main(int argc, char* argv[])
 			// points vector
 			if (horizontalIntersectionsDistance < verticalIntersectionsDistance)
 			{
-				if(DEBUG)
+				if (DEBUG)
 					actualPoints[x] = aPoints[x];
 
 				// x-coordinate of intersection with wall
@@ -663,7 +669,7 @@ int main(int argc, char* argv[])
 			}
 			else
 			{
-				if(DEBUG)
+				if (DEBUG)
 					actualPoints[x] = bPoints[x];
 
 				// y-coordinate of intersection with the wall
@@ -698,6 +704,8 @@ int main(int argc, char* argv[])
 			// Correct fish-eye distortion for the actual rendering of the walls
 			distance *= cosf(radians(theta - rayAngle));
 
+			// I use the fisheye corrected distance because the comparison in the sprite rendering loop uses the fisheye corrected distance
+			// to the sprite
 			zBuffer[x] = distance;
 
 			// Calculate the height of the wall
@@ -711,7 +719,7 @@ int main(int argc, char* argv[])
 
 			// Calculate the gap between the top of the wall and the top of the screen; this is used for drawing the wall sliver
 			// int ceilingGap{ static_cast<int>((height - wallHeight) / 2) };
-			
+
 			// The column on the texture which corresponds to the position of the ray intersection with the wall
 			int textureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture.m_width) };
 
@@ -728,7 +736,8 @@ int main(int argc, char* argv[])
 				// Get the color of the texture at the point on the wall (x, y)
 				uint32_t color{ wallTexture[textureSpaceRow * wallTexture.m_width + textureSpaceColumn] };
 
-				screen[y * width + x] = calculateLighting(color, lighting);
+				// screen[y * width + x] = calculateLighting(color, lighting);
+				screen[y * width + x] = color;
 			}
 
 			// Precalculate some values that will be used in the for loop below
@@ -780,11 +789,12 @@ int main(int argc, char* argv[])
 
 				// Calculate the lighting at that point on the floor
 				float lighting{ -0.4f * correctedDistance + 255.0f };
-				
+
 				if (lighting < 0.0f)
 					lighting = 0.0f;
 
-				screen[y * width + x] = calculateLighting(floorTexture[textureY * floorTexture.m_width + textureX], lighting);
+				// screen[y * width + x] = calculateLighting(floorTexture[textureY * floorTexture.m_width + textureX], lighting);
+				screen[y * width + x] = floorTexture[textureY * floorTexture.m_width + textureX];
 			}
 
 			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
@@ -826,7 +836,8 @@ int main(int argc, char* argv[])
 				if (lighting < 0.0f)
 					lighting = 0.0f;
 
-				screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
+				// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
+				screen[y * width + x] = ceilingTexture[textureY * ceilingTexture.m_width + textureX];
 			}
 		}
 
@@ -840,26 +851,39 @@ int main(int argc, char* argv[])
 			}
 		);
 
+		// Loop through each sprite
 		for (int i{ 0 }; i < sprites.size(); i++)
 		{
+			// Calculate the angle along the horizontal axis
 			float spriteAngle{ degrees(atan2f(sprites[i].y - playerY, sprites[i].x - playerX)) };
+
+			// Add the angle of the player so that sprite angle is relative to the player's perspective
 			spriteAngle += theta;
 
+			// Find an equivalent angle for sprite angle on the interval 0-360
 			spriteAngle = getCoterminalAngle(spriteAngle);
+
+			// If the sprite is behind the player, it can be disregarded
 			if (spriteAngle > 90.0f && spriteAngle < 270.0f)
 				continue;
-
+			
+			// Use the angle to determine which column of the screen the center of the sprite is on
+			// (this equation is the same as the equation used to calculate the angle between rays, except solved for x)
 			int x{ static_cast<int>(adjustedDistanceToProjectionPlane * tanf(radians(spriteAngle)) + (width / 2)) };
 
+			// Calculate distance and correct for the fish eye effect
 			float distance{ sqrtf(sprites[i].noSqrtDistance) };
 			distance *= cosf(radians(spriteAngle));
 
+			// Calculate the size of the sprite (same process as calculating the height of a wall slice)
 			int spriteSize{ static_cast<int>((distanceToProjectionPlane * gridSize) / distance) };
 			int halfSpriteSize{ spriteSize / 2 };
 
+			// Exact same thing as for the walls
 			int bottomOfSprite{ projectionPlaneCenter + static_cast<int>((distanceToProjectionPlane * playerHeight) / distance) };
 			int topOfSprite{ bottomOfSprite - spriteSize };
 
+			// Find the leftmost slice of the sprite and the rightmost for drawing it to the screens
 			int leftOfSprite{ x - halfSpriteSize };
 			int rightOfSprite{ x + halfSpriteSize };
 
@@ -867,18 +891,25 @@ int main(int argc, char* argv[])
 			int minBetweenBottomOfSpriteAndHeight{ std::min(bottomOfSprite, height) };
 			for (int screenX{ std::max(leftOfSprite, 0) }; screenX < minBetweenRightOfSpriteAndWidth; screenX++)
 			{
+				// Normalize the x-coordinate
 				float normX{ (screenX - leftOfSprite) / static_cast<float>(spriteSize) };
+				// Calculate the x-coordinate for the texture
+				int textureX{ static_cast<int>(normX * sprites[i].textureWidth()) };
+
+				// If there is no wall slice closer to the player than the sprite slice, draw the sprite slice
 				if (!(zBuffer[screenX] < distance))
 				{
 					for (int y{ std::max(topOfSprite, 0) }; y < minBetweenBottomOfSpriteAndHeight; y++)
 					{
+						// Normalize the y-coordinate
 						float normY{ (y - topOfSprite) / static_cast<float>(spriteSize) };
-
-						int textureX{ static_cast<int>(normX * sprites[i].textureWidth()) };
+						// Calculate the y-coordinate for the texture
 						int textureY{ static_cast<int>(normY * sprites[i].textureHeight()) };
 
+						// Get the color from the sprite object
 						uint32_t color{ sprites[i][textureY * sprites[i].textureWidth() + textureX] };
 
+						// In the Wolfenstein textures, the transparent parts have a black color. Don't draw completely black pixels
 						if (color != 255)
 							screen[y * width + screenX] = color;
 					}
