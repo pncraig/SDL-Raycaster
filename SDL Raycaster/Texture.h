@@ -15,6 +15,7 @@ public:
 	int m_height;
 
 	Texture(const std::string& fileName, int pixelFormat);
+	Texture(const std::string& fileName, const SDL_Rect& section, int pixelFormat);
 	~Texture();
 
 	uint32_t operator[](int i);

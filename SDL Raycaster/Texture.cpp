@@ -25,6 +25,39 @@ Texture::Texture(const std::string& fileName, int pixelFormat)
 	SDL_FreeSurface(formattedSurface);
 }
 
+Texture::Texture(const std::string& fileName, const SDL_Rect& section, int pixelFormat)
+{
+	SDL_Surface* textureSurface{ IMG_Load(fileName.c_str()) };
+	SDL_Surface* formattedSurface{ SDL_ConvertSurfaceFormat(textureSurface, pixelFormat, NULL) };
+
+	m_width = section.w;
+	m_height = section.h;
+	m_pixels = new uint32_t[m_width * m_height];
+
+	if (m_width > formattedSurface->w)
+		m_width = formattedSurface->w;
+
+	if (m_height > formattedSurface->h)
+		m_height = formattedSurface->h;
+
+	SDL_LockSurface(formattedSurface);
+
+	uint32_t* pixelsToCopy = static_cast<uint32_t*>(formattedSurface->pixels);
+
+	for (int x{ section.x }; x < section.x + m_width; x++)
+	{
+		for (int y{ section.y }; y < section.y + m_height; y++)
+		{
+			m_pixels[(y - section.y) * m_width + (x - section.x)] = pixelsToCopy[y * formattedSurface->w + x];
+		}
+	}
+
+	SDL_UnlockSurface(formattedSurface);
+
+	SDL_FreeSurface(textureSurface);
+	SDL_FreeSurface(formattedSurface);
+}
+
 Texture::~Texture()
 {
 	delete[] m_pixels;
@@ -36,7 +69,7 @@ uint32_t Texture::operator[](int i)
 		return m_pixels[i];
 	else
 	{
-		// std::cout << "Out of bounds error: " << i << "\n";
+		std::cout << "Out of bounds error: " << i << "\n";
 		return 0xFFFF00FF;
 	}
 }

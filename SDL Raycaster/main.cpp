@@ -1,6 +1,7 @@
 /*
 * Created 2:41 PM on 12/25/2021 (Merry Christmas / Clashmas)
 */
+
 #include <iostream>
 #include "SDL.h"
 #include "SDL_image.h"
@@ -11,7 +12,7 @@
 
 // Headers created by me which contain useful classes
 #include "Texture.h"
-#include "Sprite.h"
+#include "Sprites.h"
 
 // Size of the screen which the raycast scene is projected to (doesn't include the map)
 const int width = 640;
@@ -24,10 +25,14 @@ bool DEBUG{ false };	// Set equal to true for an overhead view of the scene
 // Stores the distance to the scene at each column
 float zBuffer[width];
 
-int gridSize{ 64 };		// Side length of an individual grid block
-int gridWidth{ 20 };	// Width of the whole map in terms of grid blocks
-int gridHeight{ 20 };	// Height of the whole map in terms of grid blocks
+const int gridSize{ 64 };		// Side length of an individual grid block
+const int gridWidth{ 20 };		// Width of the whole map in terms of grid blocks
+const int gridHeight{ 20 };		// Height of the whole map in terms of grid blocks
 std::string gridMap{};	// String which stores the map
+
+Texture* wallTextureLocations[gridWidth * gridHeight];
+Texture* floorTextureLocations[gridWidth * gridHeight];
+Texture* ceilingTextureLocations[gridWidth * gridHeight];
 
 // Vector which holds all the sprites
 std::vector<Sprite> sprites{};
@@ -41,7 +46,7 @@ int playerRadius{ 15 };					// Radius of player
 // The "adjusted" distance to the projection plane, used so that I can adjust the field of view
 float adjustedDistanceToProjectionPlane{ (width / 2) / fabs(tanf((FOV / 2) * (M_PI / 180.0f))) };
 
-float theta{ -2.30001f };					// Angle of the player
+float theta{ 0.0f };					// Angle of the player
 float playerX{ 432.224f };				// x-coordinate of the player in pixels, not grid coordinates
 float playerY{ 353.454f };				// y-coordinate of the player in pixels, not grid coordinates
 float playerSpeed{ 100.0f };			// Speed at which the player moves
@@ -123,6 +128,7 @@ uint32_t calculateLighting(const uint32_t& color, const float& lighting)
 	uint32_t blue{ (color >> 8) - (red << 16) - (green << 8) };
 
 	// Calculate the brightness of each color according to the lighting
+	// (0.0039215686 is the inverse of 255)
 	red = static_cast<uint32_t>(red * 0.0039215686f * lighting);
 	green = static_cast<uint32_t>(green * 0.0039215686f * lighting);
 	blue = static_cast<uint32_t>(blue * 0.0039215686f * lighting);
@@ -171,19 +177,30 @@ int main(int argc, char* argv[])
 	const Uint8* keystate{};
 
 	// Textures for texturing the ceiling, floor, walls, and sprites
-	Texture wallTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
-	Texture floorTexture{ "colorstone.png", SDL_PIXELFORMAT_RGBA8888 };
-	Texture ceilingTexture{ "wood.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture noTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture redbrick{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture colorstone{ "colorstone.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture wood{ "wood.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture purplestone{ "purplestone.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture bluestone{ "bluestone.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture greystone{ "greystone.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture mossy{ "mossy.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture eagle{ "eagle.png", SDL_PIXELFORMAT_RGBA8888 };
+
+	Texture front{ "sprite-sheet-non-transparent.png", {32, 0, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture left{ "sprite-sheet-non-transparent.png", {32, 32, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture right{ "sprite-sheet-non-transparent.png", {32, 64, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture back{ "sprite-sheet-non-transparent.png", {32, 96, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
+
 	Texture spriteTexture{ "greenlight.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture spriteTexture2{ "pillar.png", SDL_PIXELFORMAT_RGBA8888 };
-	Texture spriteTexture3{ "g2.png", SDL_PIXELFORMAT_RGBA8888 };
 
 	// Add sprites to the sprite array
-	sprites.push_back(Sprite{ &spriteTexture, gridSize * 16.0f, gridSize * 5.0f });
+	sprites.push_back(Sprite{ &spriteTexture, gridSize * 5.5f, gridSize * 17.5f });
 	sprites.push_back(Sprite{ &spriteTexture, 350.0f + 127.0f, 350.0f });
 	sprites.push_back(Sprite{ &spriteTexture2, 11.5f * gridSize, 13.5f * gridSize });
 	sprites.push_back(Sprite{ &spriteTexture2, 18.5f * gridSize, 13.5f * gridSize });
-	sprites.push_back(Sprite{ &spriteTexture3, 17.5f * gridSize, 15.5f * gridSize });
+	sprites.push_back(Sprite{ {&front, &right, &back, &left}, 16.0f * gridSize, 5.0f * gridSize, 0.0f });
 
 	// Create the map
 	gridMap += "####################";
@@ -206,6 +223,35 @@ int main(int argc, char* argv[])
 	gridMap += "#-##--#--##--------#";
 	gridMap += "#--####--##--####--#";
 	gridMap += "####################";
+
+	for (int y{ 0 }; y < gridHeight; y++)
+	{
+		for (int x{ 0 }; x < gridWidth; x++)
+		{
+			int location{ y * gridWidth + x };
+			if (gridMap[location] == '#')
+			{
+				floorTextureLocations[location] = &noTexture;
+				ceilingTextureLocations[location] = &noTexture;
+
+				if (x < gridWidth / 2 && y < gridHeight / 2)
+					wallTextureLocations[location] = &redbrick;
+				else if (x > gridWidth / 2 && y < gridHeight / 2)
+					wallTextureLocations[location] = &purplestone;
+				else if (x < gridWidth / 2 && y < gridHeight)
+					wallTextureLocations[location] = &bluestone;
+				else
+					wallTextureLocations[location] = &eagle;
+			}
+			else
+			{
+				wallTextureLocations[location] = &noTexture;
+
+				ceilingTextureLocations[location] = &mossy;
+				floorTextureLocations[location] = &wood;
+			}
+		}
+	}
 
 
 	// Fill the tables with the trig value of each possible ray angles (3600 of them with a 60 degree FOV and width of 600)
@@ -642,6 +688,8 @@ int main(int argc, char* argv[])
 			// The column the ray hits on a wall
 			int gridSpaceColumn{};
 
+			Texture* wallTexture{};
+
 			// The ray used for rendering is the shorter one, so save the one which is a smaller distance away to the actual intersection
 			// points vector
 			if (horizontalIntersectionsDistance < verticalIntersectionsDistance)
@@ -651,6 +699,8 @@ int main(int argc, char* argv[])
 
 				// x-coordinate of intersection with wall
 				int intersectionX{ static_cast<int>(aX) };
+
+				wallTexture = wallTextureLocations[aYgrid * gridWidth + aXgrid];
 
 				// If the ray hit the top of a wall...
 				if (topOrBottom)
@@ -674,6 +724,8 @@ int main(int argc, char* argv[])
 
 				// y-coordinate of intersection with the wall
 				int intersectionY{ static_cast<int>(bY) };
+
+				wallTexture = wallTextureLocations[bYgrid * gridWidth + bXgrid];
 
 				// If the ray hit the left side of the wall...
 				if (leftOrRight)
@@ -721,7 +773,7 @@ int main(int argc, char* argv[])
 			// int ceilingGap{ static_cast<int>((height - wallHeight) / 2) };
 
 			// The column on the texture which corresponds to the position of the ray intersection with the wall
-			int textureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture.m_width) };
+			int textureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
 
 			// If I put std::min(bottomOfWall, height) into the for loop, it would evaluate every iteration, which is wasteful
 			// because the value doesn't change
@@ -731,10 +783,10 @@ int main(int argc, char* argv[])
 			for (int y{ std::max(topOfWall, 0) }; y < minBetweenHeightAndBottomOfWall; y++)
 			{
 				// The row on the texture
-				int textureSpaceRow{ static_cast<int>((y - topOfWall) / static_cast<float>(wallHeight) * wallTexture.m_height) };
+				int textureSpaceRow{ static_cast<int>((y - topOfWall) / static_cast<float>(wallHeight) * wallTexture->m_height) };
 
 				// Get the color of the texture at the point on the wall (x, y)
-				uint32_t color{ wallTexture[textureSpaceRow * wallTexture.m_width + textureSpaceColumn] };
+				uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn] };
 
 				// screen[y * width + x] = calculateLighting(color, lighting);
 				screen[y * width + x] = color;
@@ -744,6 +796,8 @@ int main(int argc, char* argv[])
 			float cosOfRayAngle{ cosf(radians(rayAngle)) };
 			float sinOfRayAngle{ sinf(radians(rayAngle)) };
 			float cosOfThetaMinusRayAngle{ cosf(radians(theta - rayAngle)) };
+
+			Texture* floorTexture{};
 
 			// Floor cast
 			// y is a point on the projection plane from the bottom of the wall to the end of the screen
@@ -774,15 +828,17 @@ int main(int argc, char* argv[])
 				int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
 				int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
 
+				floorTexture = floorTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
+
 				// Find the coordinates of point P within the grid square and normalize them
 				float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
 				float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
 
 				// Calculate the coordinates of point P in texture space
-				int textureX{ static_cast<int>(normX * floorTexture.m_width) };
-				int textureY{ static_cast<int>(normY * floorTexture.m_height) };
+				int textureX{ static_cast<int>(normX * floorTexture->m_width) };
+				int textureY{ static_cast<int>(normY * floorTexture->m_height) };
 
-				int i{ textureY * floorTexture.m_width + textureX };
+				int i{ textureY * floorTexture->m_width + textureX };
 
 				if (i < 0)
 					std::cout << "Column: " << x << ", Row: " << y << '\n';
@@ -794,8 +850,10 @@ int main(int argc, char* argv[])
 					lighting = 0.0f;
 
 				// screen[y * width + x] = calculateLighting(floorTexture[textureY * floorTexture.m_width + textureX], lighting);
-				screen[y * width + x] = floorTexture[textureY * floorTexture.m_width + textureX];
+				screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
 			}
+
+			Texture* ceilingTexture{};
 
 			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
 			for (int y{ topOfWall }; y > 0; y--)
@@ -822,13 +880,15 @@ int main(int argc, char* argv[])
 				int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
 				int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
 
+				ceilingTexture = ceilingTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
+
 				// Find the coordinates of point P within the grid square and normalize them
 				float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
 				float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
 
 				// Calculate the coordinates of point P in texture space
-				int textureX{ static_cast<int>(normX * ceilingTexture.m_width) };
-				int textureY{ static_cast<int>(normY * ceilingTexture.m_height) };
+				int textureX{ static_cast<int>(normX * ceilingTexture->m_width) };
+				int textureY{ static_cast<int>(normY * ceilingTexture->m_height) };
 
 				// Calculate the lighting at that point on the ceiling
 				float lighting{ -0.4f * correctedDistance + 255.0f };
@@ -837,17 +897,17 @@ int main(int argc, char* argv[])
 					lighting = 0.0f;
 
 				// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
-				screen[y * width + x] = ceilingTexture[textureY * ceilingTexture.m_width + textureX];
+				screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
 			}
 		}
-
+		
 		for (int i{ 0 }; i < sprites.size(); i++)
 			sprites[i].noSqrtDistance = (playerX - sprites[i].x) * (playerX - sprites[i].x) + (playerY - sprites[i].y) * (playerY - sprites[i].y);
 
 		// Sort sprites by distance
 		std::sort(sprites.begin(), sprites.end(), [](const Sprite& a, const Sprite& b)
 			{
-				return (a.noSqrtDistance < b.noSqrtDistance ? true : false);
+				return (a.noSqrtDistance > b.noSqrtDistance ? true : false);
 			}
 		);
 
@@ -887,6 +947,8 @@ int main(int argc, char* argv[])
 			int leftOfSprite{ x - halfSpriteSize };
 			int rightOfSprite{ x + halfSpriteSize };
 
+			Texture* textureFacing{ sprites[i].facingTexture(sprites[i].angleToSprite(playerX, playerY)) };
+
 			int minBetweenRightOfSpriteAndWidth{ std::min(rightOfSprite, width) };
 			int minBetweenBottomOfSpriteAndHeight{ std::min(bottomOfSprite, height) };
 			for (int screenX{ std::max(leftOfSprite, 0) }; screenX < minBetweenRightOfSpriteAndWidth; screenX++)
@@ -894,20 +956,20 @@ int main(int argc, char* argv[])
 				// Normalize the x-coordinate
 				float normX{ (screenX - leftOfSprite) / static_cast<float>(spriteSize) };
 				// Calculate the x-coordinate for the texture
-				int textureX{ static_cast<int>(normX * sprites[i].textureWidth()) };
+				int textureX{ static_cast<int>(normX * textureFacing->m_width) };
 
 				// If there is no wall slice closer to the player than the sprite slice, draw the sprite slice
-				if (!(zBuffer[screenX] < distance))
+				if (zBuffer[screenX] > distance)
 				{
 					for (int y{ std::max(topOfSprite, 0) }; y < minBetweenBottomOfSpriteAndHeight; y++)
 					{
 						// Normalize the y-coordinate
 						float normY{ (y - topOfSprite) / static_cast<float>(spriteSize) };
 						// Calculate the y-coordinate for the texture
-						int textureY{ static_cast<int>(normY * sprites[i].textureHeight()) };
+						int textureY{ static_cast<int>(normY * textureFacing->m_height) };
 
 						// Get the color from the sprite object
-						uint32_t color{ sprites[i][textureY * sprites[i].textureWidth() + textureX] };
+						uint32_t color{ (*textureFacing)[textureY * textureFacing->m_width + textureX] };
 
 						// In the Wolfenstein textures, the transparent parts have a black color. Don't draw completely black pixels
 						if (color != 255)
