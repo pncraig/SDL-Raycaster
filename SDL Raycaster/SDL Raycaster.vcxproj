@@ -154,10 +154,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Ray.cpp" />
     <ClCompile Include="Sprites.cpp" />
     <ClCompile Include="Texture.cpp" />
+    <ClCompile Include="vec2.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Ray.h" />
     <ClInclude Include="Sprites.h" />
     <ClInclude Include="Texture.h" />
   </ItemGroup>
