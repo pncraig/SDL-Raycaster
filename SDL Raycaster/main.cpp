@@ -17,8 +17,8 @@
 #include "vec2.h"
 
 // Size of the screen which the raycast scene is projected to (doesn't include the map)
-const int width = 640;
-const int height = 400;
+const int width = 1280;
+const int height = 800;
 
 int projectionPlaneCenter{ height / 2 };	// The vertical center of the projection plane
 
@@ -40,7 +40,7 @@ Texture* ceilingTextureLocations[gridWidth * gridHeight];
 std::vector<Sprite> sprites{};
 
 int FOV{ 60 };							// Field of view of player
-int distanceToProjectionPlane{ 277 };	// Distance of the "camera" (player) to the "projection plane" (screen)
+int distanceToProjectionPlane{ 512 };	// Distance of the "camera" (player) to the "projection plane" (screen)
 
 int playerHeight{ gridSize / 2 };		// Height of player (typically half of gridSize)
 int playerRadius{ 15 };					// Radius of player
@@ -230,8 +230,8 @@ int main(int argc, char* argv[])
 			{
 				wallTextureLocations[location] = &noTexture;
 
-				ceilingTextureLocations[location] = &mossy;
-				floorTextureLocations[location] = &wood;
+				floorTextureLocations[location] = &mossy;
+				ceilingTextureLocations[location] = &wood;
 			}
 		}
 	}
@@ -503,7 +503,7 @@ int main(int argc, char* argv[])
 			float cosOfRayAngle{ cosf(radians(rayAngle)) };
 			float sinOfRayAngle{ sinf(radians(rayAngle)) };
 			float cosOfThetaMinusRayAngle{ cosf(radians(theta - rayAngle)) };
-
+			
 			Texture* floorTexture{};
 			
 			// Floor cast
@@ -559,7 +559,7 @@ int main(int argc, char* argv[])
 				// screen[y * width + x] = calculateLighting(floorTexture[textureY * floorTexture.m_width + textureX], lighting);
 				screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
 			}
-
+			
 			Texture* ceilingTexture{};
 
 			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
@@ -608,6 +608,7 @@ int main(int argc, char* argv[])
 			}
 			
 		}
+		
 		
 		for (int i{ 0 }; i < sprites.size(); i++)
 			sprites[i].noSqrtDistance = (playerX - sprites[i].x) * (playerX - sprites[i].x) + (playerY - sprites[i].y) * (playerY - sprites[i].y);
@@ -686,7 +687,7 @@ int main(int argc, char* argv[])
 				}
 			}
 		}
-
+		
 		// Update the texture that will be drawn to the screen with the array of pixels
 		SDL_UpdateTexture(frameBuffer, NULL, screen, width * sizeof(uint32_t));
 

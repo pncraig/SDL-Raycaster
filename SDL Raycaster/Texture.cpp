@@ -69,7 +69,7 @@ uint32_t Texture::operator[](int i)
 		return m_pixels[i];
 	else
 	{
-		std::cout << "Out of bounds error: " << i << "\n";
+		std::cout << "Out of bounds error in a texture: " << i << "\n";
 		return 0xFFFF00FF;
 	}
 }
