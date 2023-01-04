@@ -52,8 +52,9 @@ float theta{ 0.0f };					// Angle of the player
 float playerX{ 432.224f };				// x-coordinate of the player in pixels, not grid coordinates
 float playerY{ 353.454f };				// y-coordinate of the player in pixels, not grid coordinates
 float playerSpeed{ 100.0f };			// Speed at which the player moves
-float playerTurnSpeed{ 75.0f };			// Speed with which the player can turn
-float playerLookUpSpeed{ 175.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
+float playerTurnSpeed{ 575.0f };			// Speed with which the player can turn
+float playerLookUpSpeed{ 1575.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
+float playerRiseSpeed{ 50.0f };
 float jumpTime{ 0.0f };
 
 // Used to calculate the time elapsed between frames
@@ -159,6 +160,8 @@ int main(int argc, char* argv[])
 
 	const Uint8* keystate{};
 
+	SDL_SetRelativeMouseMode(SDL_TRUE);
+
 	// Textures for texturing the ceiling, floor, walls, and sprites
 	Texture noTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture redbrick{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
@@ -169,6 +172,7 @@ int main(int argc, char* argv[])
 	Texture greystone{ "greystone.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture mossy{ "mossy.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture eagle{ "eagle.png", SDL_PIXELFORMAT_RGBA8888 };
+	Texture background{ "downloadedbackground.png", SDL_PIXELFORMAT_RGBA8888 };
 
 	Texture front{ "sprite-sheet-non-transparent.png", {32, 0, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
 	Texture left{ "sprite-sheet-non-transparent.png", {32, 32, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
@@ -236,9 +240,16 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	float turnSpeed{};
+	float lookUpSpeed{};
+
 	// Game loop
 	while (isRunning)
 	{
+
+		turnSpeed = 0.0f;
+		lookUpSpeed = 0.0f;
+
 		// Event loop
 		while (SDL_PollEvent(&ev) != 0)
 		{
@@ -261,8 +272,18 @@ int main(int argc, char* argv[])
 					}
 				}
 				break;
+
+			case SDL_MOUSEBUTTONDOWN:
+				SDL_SetRelativeMouseMode(SDL_TRUE);
+				break;
+
+			case SDL_MOUSEMOTION:
+				turnSpeed = ev.motion.xrel * 50.0f;
+				lookUpSpeed = ev.motion.yrel * 150.0f;
+				break;
 			}
 		}
+
 
 		// Get keys
 		keystate = SDL_GetKeyboardState(NULL);
@@ -334,6 +355,9 @@ int main(int argc, char* argv[])
 		playerX += xSpeed * deltaTime;
 		playerY += ySpeed * deltaTime;
 
+		theta -= turnSpeed * deltaTime;
+		projectionPlaneCenter -= static_cast<int>(lookUpSpeed * deltaTime);
+
 		// Turn player left and right
 		if (keystate[SDL_SCANCODE_A])
 			theta += playerTurnSpeed * deltaTime;
@@ -349,8 +373,8 @@ int main(int argc, char* argv[])
 		// Make sure some part of the projection plane is always over the middle of the screen
 		if (projectionPlaneCenter <= 0)
 			projectionPlaneCenter = 0;
-		else if (projectionPlaneCenter >= height)
-			projectionPlaneCenter = height;
+		else if (projectionPlaneCenter > height)
+			projectionPlaneCenter = height - 1;
 
 		// Move player up and down
 		if (keystate[SDL_SCANCODE_SPACE])
@@ -364,6 +388,8 @@ int main(int argc, char* argv[])
 		else if (playerHeight <= 0)
 			playerHeight = 1;
 
+		if (keystate[SDL_SCANCODE_ESCAPE])
+			SDL_SetRelativeMouseMode(SDL_FALSE);
 
 		// Collision detection
 		int playerGridOffsetX{ static_cast<int>(playerX) - (gridX * gridSize) };
@@ -560,6 +586,32 @@ int main(int argc, char* argv[])
 				screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
 			}
 			
+			
+			// Put rayAngle on the interval 0 <= rayAngle < 360
+			rayAngle = getCoterminalAngle(rayAngle);
+
+			// Calculate which column of the panorama texture should be rendered in this column (the * 3 on the background.m_width repeats the image 3 times)
+			int panoramaColumn{ static_cast<int>((rayAngle / 360.0f) * (background.m_width * 3)) };
+
+			// Loop from the top of the wall 
+			for (int y{ topOfWall }; y > 0; y--)
+			{
+				// Map the y so it will move with the projection plane center
+				int movableY{ y + ((height / 2) - projectionPlaneCenter) };
+				movableY += height / 2;		// Add height / 2 to avoid negative numbers
+
+				// Map movable y to the correct row on the panorama texture (the max value of movableY is 2 * height)
+				int panoramaRow{ static_cast<int>(movableY / static_cast<float>(2 * height) * background.m_height) };
+
+				// Find the color from the panorama texture (the panoramaColumn % background.m_width keeps the column within the bounds of the texture
+				// if panorama column has been looped)
+				uint32_t color{ background[panoramaRow * background.m_width + (panoramaColumn % background.m_width)] };
+
+				// Output to the screen
+				screen[y * width + x] = color;
+			}
+			
+			/*
 			Texture* ceilingTexture{};
 
 			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
@@ -606,7 +658,7 @@ int main(int argc, char* argv[])
 				// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
 				screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
 			}
-			
+			*/
 		}
 		
 		
