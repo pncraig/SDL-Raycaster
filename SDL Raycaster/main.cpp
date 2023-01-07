@@ -39,7 +39,7 @@ Texture* ceilingTextureLocations[gridWidth * gridHeight];
 // Vector which holds all the sprites
 std::vector<Sprite> sprites{};
 
-int FOV{ 60 };							// Field of view of player
+int FOV{ 90 };							// Field of view of player
 int distanceToProjectionPlane{ 512 };	// Distance of the "camera" (player) to the "projection plane" (screen)
 
 int playerHeight{ gridSize / 2 };		// Height of player (typically half of gridSize)
@@ -55,7 +55,11 @@ float playerSpeed{ 100.0f };			// Speed at which the player moves
 float playerTurnSpeed{ 575.0f };			// Speed with which the player can turn
 float playerLookUpSpeed{ 1575.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
 float playerRiseSpeed{ 50.0f };
-float jumpTime{ 0.0f };
+
+bool keyboardInput{ false };
+bool mouseInput{ !keyboardInput };
+bool panoramaBackground{ true };
+bool ceiling{ !panoramaBackground };
 
 // Used to calculate the time elapsed between frames
 float previousTime{};
@@ -126,6 +130,52 @@ uint32_t calculateLighting(const uint32_t& color, const float& lighting)
 	return uint32_t{ red + green + blue + 0x000000FF };
 }
 
+uint32_t interpolateColors(uint32_t a, uint32_t b, float t)
+{
+	uint32_t ar{ a >> 24 };
+	uint32_t ag{ (a >> 16) - (ar << 8) };
+	uint32_t ab{ (a >> 8) - (ar << 16) - (ag << 8) };
+	
+	uint32_t br{ b >> 24 };
+	uint32_t bg{ (b >> 16) - (br << 8) };
+	uint32_t bb{ (b >> 8) - (br << 16) - (bg << 8) };
+
+	uint32_t tr{ static_cast<uint32_t>(static_cast<float>(ar) * (1 - t) + static_cast<float>(br) * t) };
+	uint32_t tg{ static_cast<uint32_t>(static_cast<float>(ag) * (1 - t) + static_cast<float>(bg) * t) };
+	uint32_t tb{ static_cast<uint32_t>(static_cast<float>(ab) * (1 - t) + static_cast<float>(bb) * t) };
+
+	tr <<= 24;
+	tg <<= 16;
+	tb <<= 8;
+
+	return tr + tg + tb + 0x000000FF;
+}
+
+uint32_t getTexelColor(Texture* texture, float tx, float ty)
+{
+	float fx{ tx - static_cast<int>(tx) };
+	float fy{ ty - static_cast<int>(ty) };
+	int ntx{ static_cast<int>(tx) };
+	int nty{ static_cast<int>(ty) };
+
+	int textureSize{ texture->m_width * texture->m_height };
+
+	uint32_t TL{ (*texture)[nty * texture->m_width + ntx] };
+
+	uint32_t TR{ (*texture)[nty * texture->m_width + ((ntx + 1) % texture->m_width)] };
+
+	uint32_t BL{ (*texture)[((nty + 1) % texture->m_height) * texture->m_width + ntx] };
+
+	uint32_t BR{ (*texture)[((nty + 1) % texture->m_height) * texture->m_width + ((ntx + 1) % texture->m_width)] };
+
+	uint32_t CT{ interpolateColors(TL, TR, fx) };
+	uint32_t CB{ interpolateColors(BL, BR, fx) };
+	
+	uint32_t C{ interpolateColors(CT, CB, fy) };
+
+	return C;
+}
+
 int main(int argc, char* argv[])
 {
 	// SDL_Init() returns a negative number upon failure, and SDL_INIT_EVERYTHING sets all the flags to true
@@ -159,8 +209,6 @@ int main(int argc, char* argv[])
 	uint32_t* screen = new uint32_t[width * height];	// An array of pixels that is manipulated then updated to frameBuffer
 
 	const Uint8* keystate{};
-
-	SDL_SetRelativeMouseMode(SDL_TRUE);
 
 	// Textures for texturing the ceiling, floor, walls, and sprites
 	Texture noTexture{ "redbrick.png", SDL_PIXELFORMAT_RGBA8888 };
@@ -273,13 +321,19 @@ int main(int argc, char* argv[])
 				}
 				break;
 
+				// If the mouse button is clicked within the window, restrict the mouse to the window
 			case SDL_MOUSEBUTTONDOWN:
 				SDL_SetRelativeMouseMode(SDL_TRUE);
 				break;
-
+			
+				// Updates turnSpeed and lookUpSpeed base on the motion of the mouse relative to the center of the screen
 			case SDL_MOUSEMOTION:
-				turnSpeed = ev.motion.xrel * 50.0f;
-				lookUpSpeed = ev.motion.yrel * 150.0f;
+				// Only use mouse input if we want it
+				if (mouseInput)
+				{
+					turnSpeed = ev.motion.xrel * 50.0f;
+					lookUpSpeed = ev.motion.yrel * 150.0f;
+				}
 				break;
 			}
 		}
@@ -358,23 +412,21 @@ int main(int argc, char* argv[])
 		theta -= turnSpeed * deltaTime;
 		projectionPlaneCenter -= static_cast<int>(lookUpSpeed * deltaTime);
 
-		// Turn player left and right
-		if (keystate[SDL_SCANCODE_A])
-			theta += playerTurnSpeed * deltaTime;
-		else if (keystate[SDL_SCANCODE_D])
-			theta -= playerTurnSpeed * deltaTime;
+		// Only use the keyboard input if we want it
+		if (keyboardInput)
+		{
+			// Turn player left and right
+			if (keystate[SDL_SCANCODE_A])
+				theta += playerTurnSpeed * deltaTime;
+			else if (keystate[SDL_SCANCODE_D])
+				theta -= playerTurnSpeed * deltaTime;
 
-		// Move player view up and down
-		if (keystate[SDL_SCANCODE_DOWN])
-			projectionPlaneCenter -= playerLookUpSpeed * deltaTime;
-		else if (keystate[SDL_SCANCODE_UP])
-			projectionPlaneCenter += playerLookUpSpeed * deltaTime;
-
-		// Make sure some part of the projection plane is always over the middle of the screen
-		if (projectionPlaneCenter <= 0)
-			projectionPlaneCenter = 0;
-		else if (projectionPlaneCenter > height)
-			projectionPlaneCenter = height - 1;
+			// Move player view up and down
+			if (keystate[SDL_SCANCODE_DOWN])
+				projectionPlaneCenter -= playerLookUpSpeed * deltaTime;
+			else if (keystate[SDL_SCANCODE_UP])
+				projectionPlaneCenter += playerLookUpSpeed * deltaTime;
+		}
 
 		// Move player up and down
 		if (keystate[SDL_SCANCODE_SPACE])
@@ -382,12 +434,19 @@ int main(int argc, char* argv[])
 		else if (keystate[SDL_SCANCODE_LSHIFT])
 			playerHeight--;
 
+		// Make sure some part of the projection plane is always over the middle of the screen
+		if (projectionPlaneCenter <= 0)
+			projectionPlaneCenter = 0;
+		else if (projectionPlaneCenter > height)
+			projectionPlaneCenter = height - 1;
+
 		// Make sure the player doesn't fly above or below the world
 		if (playerHeight >= gridSize)
 			playerHeight = gridSize - 1;
 		else if (playerHeight <= 0)
 			playerHeight = 1;
 
+		// If the player clicks escape, release the mouse from the window
 		if (keystate[SDL_SCANCODE_ESCAPE])
 			SDL_SetRelativeMouseMode(SDL_FALSE);
 
@@ -448,34 +507,40 @@ int main(int argc, char* argv[])
 			Texture* wallTexture{ wallTextureLocations[(gridIntersectionY / gridSize) * gridWidth + (gridIntersectionX / gridSize)] };
 
 			// The column the ray hits on a wall
-			int gridSpaceColumn{};
+			float gridSpaceColumn{};
 
 			// If the ray hits the left side of the wall...
 			if (static_cast<int>(intersectionPoint.x) == gridIntersectionX)
 			{
 				// First column on the left side of the wall; at the top left corner of the wall
-				gridSpaceColumn = static_cast<int>(intersectionPoint.y) - gridIntersectionY;
+				gridSpaceColumn = intersectionPoint.y - gridIntersectionY;
 			}
 
 			// right side
 			if (static_cast<int>(intersectionPoint.x) == gridIntersectionX + gridSize - 1)
 			{
 				// First column on the right side of the wall; at the bottom right corner of the wall
-				gridSpaceColumn = (gridIntersectionY + gridSize - 1) - static_cast<int>(intersectionPoint.y);
+				gridSpaceColumn = (gridIntersectionY + gridSize - 1) - intersectionPoint.y;
 			}
 
 			// top side
 			if (static_cast<int>(intersectionPoint.y) == gridIntersectionY)
 			{
 				// First column on the top of the wall; at the top left corner of the wall
-				gridSpaceColumn = (gridIntersectionX + gridSize - 1) - static_cast<int>(intersectionPoint.x);
+				gridSpaceColumn = (gridIntersectionX + gridSize - 1) - intersectionPoint.x;
 			}
 
 			// bottom side
 			if (static_cast<int>(intersectionPoint.y) == gridIntersectionY + gridSize - 1)
 			{
 				// First column on the bottom of the wall; at the bottom right corner of the wall
-				gridSpaceColumn = static_cast<int>(intersectionPoint.x) - gridIntersectionX;
+				gridSpaceColumn = intersectionPoint.x - gridIntersectionX;
+			}
+
+			// Make sure gridSpaceColumn is not negative because it will mess up the textures
+			if (gridSpaceColumn < 0.0f)
+			{
+				gridSpaceColumn = 0.0f;
 			}
 
 			// Calculate the lighting each wall sliver experiences, if the player were a light
@@ -507,6 +572,7 @@ int main(int argc, char* argv[])
 
 			// The column on the texture which corresponds to the position of the ray intersection with the wall
 			int textureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
+			float textureX{ gridSpaceColumn / gridSize * wallTexture->m_width };
 
 			// If I put std::min(bottomOfWall, height) into the for loop, it would evaluate every iteration, which is wasteful
 			// because the value doesn't change
@@ -517,9 +583,16 @@ int main(int argc, char* argv[])
 			{
 				// The row on the texture
 				int textureSpaceRow{ static_cast<int>((y - topOfWall) / static_cast<float>(wallHeight) * wallTexture->m_height) };
+				float textureY{ (y - topOfWall) / static_cast<float>(wallHeight) * wallTexture->m_height };
 
 				// Get the color of the texture at the point on the wall (x, y)
-				uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn] };
+				// uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn] };
+				uint32_t color{};
+
+				if (wallHeight > wallTexture->m_height)
+					color = getTexelColor(wallTexture, textureX, textureY);
+				else
+					color = (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn];
 
 				// screen[y * width + x] = calculateLighting(color, lighting);
 				screen[y * width + x] = color;
@@ -529,9 +602,9 @@ int main(int argc, char* argv[])
 			float cosOfRayAngle{ cosf(radians(rayAngle)) };
 			float sinOfRayAngle{ sinf(radians(rayAngle)) };
 			float cosOfThetaMinusRayAngle{ cosf(radians(theta - rayAngle)) };
-			
+
 			Texture* floorTexture{};
-			
+
 			// Floor cast
 			// y is a point on the projection plane from the bottom of the wall to the end of the screen
 			for (int y{ bottomOfWall }; y < height; y++)
@@ -585,80 +658,85 @@ int main(int argc, char* argv[])
 				// screen[y * width + x] = calculateLighting(floorTexture[textureY * floorTexture.m_width + textureX], lighting);
 				screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
 			}
-			
-			
-			// Put rayAngle on the interval 0 <= rayAngle < 360
-			rayAngle = getCoterminalAngle(rayAngle);
 
-			// Calculate which column of the panorama texture should be rendered in this column (the * 3 on the background.m_width repeats the image 3 times)
-			int panoramaColumn{ static_cast<int>((rayAngle / 360.0f) * (background.m_width * 3)) };
-
-			// Loop from the top of the wall 
-			for (int y{ topOfWall }; y > 0; y--)
+			// Only draw the panoramic background if we want it
+			if (panoramaBackground)
 			{
-				// Map the y so it will move with the projection plane center
-				int movableY{ y + ((height / 2) - projectionPlaneCenter) };
-				movableY += height / 2;		// Add height / 2 to avoid negative numbers
+				// Put rayAngle on the interval 0 <= rayAngle < 360
+				rayAngle = getCoterminalAngle(rayAngle);
 
-				// Map movable y to the correct row on the panorama texture (the max value of movableY is 2 * height)
-				int panoramaRow{ static_cast<int>(movableY / static_cast<float>(2 * height) * background.m_height) };
+				// Calculate which column of the panorama texture should be rendered in this column (the * 3 on the background.m_width repeats the image 3 times)
+				int panoramaColumn{ static_cast<int>((rayAngle / 360.0f) * (background.m_width * 3)) };
 
-				// Find the color from the panorama texture (the panoramaColumn % background.m_width keeps the column within the bounds of the texture
-				// if panorama column has been looped)
-				uint32_t color{ background[panoramaRow * background.m_width + (panoramaColumn % background.m_width)] };
+				// Loop from the top of the wall 
+				for (int y{ topOfWall }; y > 0; y--)
+				{
+					// Map the y so it will move with the projection plane center
+					int movableY{ y + ((height / 2) - projectionPlaneCenter) };
+					movableY += height / 2;		// Add height / 2 to avoid negative numbers
 
-				// Output to the screen
-				screen[y * width + x] = color;
+					// Map movable y to the correct row on the panorama texture (the max value of movableY is 2 * height)
+					int panoramaRow{ static_cast<int>(movableY / static_cast<float>(2 * height) * background.m_height) };
+
+					// Find the color from the panorama texture (the panoramaColumn % background.m_width keeps the column within the bounds of the texture
+					// if panorama column has been looped)
+					uint32_t color{ background[panoramaRow * background.m_width + (panoramaColumn % background.m_width)] };
+
+					// Output to the screen
+					screen[y * width + x] = color;
+				}
 			}
-			
-			/*
-			Texture* ceilingTexture{};
 
-			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
-			for (int y{ topOfWall }; y > 0; y--)
+			// Only draw the ceiling if we want it
+			if(ceiling)
 			{
-				// The straight, vertical line distance to the point on the ceiling
-				float straightDistance{ static_cast<float>((gridSize - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
+				Texture* ceilingTexture{};
 
-				// The corrected distance to the point on the ceiling (Reverse fish eye)
-				float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
+				// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
+				for (int y{ topOfWall }; y > 0; y--)
+				{
+					// The straight, vertical line distance to the point on the ceiling
+					float straightDistance{ static_cast<float>((gridSize - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
 
-				// x and y components of a vector with a length of correctedDistance and angle of rayAngle
-				float dx{ correctedDistance * cosOfRayAngle };
-				float dy{ correctedDistance * -sinOfRayAngle };
+					// The corrected distance to the point on the ceiling (Reverse fish eye)
+					float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
 
-				// Calculate the location on the ceiling of the map of the current point
-				float pX{ playerX + dx };
-				float pY{ playerY + dy };
+					// x and y components of a vector with a length of correctedDistance and angle of rayAngle
+					float dx{ correctedDistance * cosOfRayAngle };
+					float dy{ correctedDistance * -sinOfRayAngle };
 
-				// Check if the point is outside of the map. Happens when the player's height is large
-				if (pX < 0.0f || pX >= gridWidth * gridSize || pY < 0.0f || pY >= gridHeight * gridSize)
-					continue;
+					// Calculate the location on the ceiling of the map of the current point
+					float pX{ playerX + dx };
+					float pY{ playerY + dy };
 
-				// Calculate the pixel coordinates of the grid square point P is in
-				int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
-				int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
+					// Check if the point is outside of the map. Happens when the player's height is large
+					if (pX < 0.0f || pX >= gridWidth * gridSize || pY < 0.0f || pY >= gridHeight * gridSize)
+						continue;
 
-				ceilingTexture = ceilingTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
+					// Calculate the pixel coordinates of the grid square point P is in
+					int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
+					int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
 
-				// Find the coordinates of point P within the grid square and normalize them
-				float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
-				float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
+					ceilingTexture = ceilingTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
 
-				// Calculate the coordinates of point P in texture space
-				int textureX{ static_cast<int>(normX * ceilingTexture->m_width) };
-				int textureY{ static_cast<int>(normY * ceilingTexture->m_height) };
+					// Find the coordinates of point P within the grid square and normalize them
+					float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
+					float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
 
-				// Calculate the lighting at that point on the ceiling
-				float lighting{ -0.4f * correctedDistance + 255.0f };
+					// Calculate the coordinates of point P in texture space
+					int textureX{ static_cast<int>(normX * ceilingTexture->m_width) };
+					int textureY{ static_cast<int>(normY * ceilingTexture->m_height) };
 
-				if (lighting < 0.0f)
-					lighting = 0.0f;
+					// Calculate the lighting at that point on the ceiling
+					float lighting{ -0.4f * correctedDistance + 255.0f };
 
-				// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
-				screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
+					if (lighting < 0.0f)
+						lighting = 0.0f;
+
+					// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
+					screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
+				}
 			}
-			*/
 		}
 		
 		
@@ -805,9 +883,7 @@ int main(int argc, char* argv[])
 		SDL_RenderCopy(renderTarget, frameBuffer, NULL, &halfScreen);
 
 		SDL_RenderPresent(renderTarget);
-
 	}
-
 
 	SDL_DestroyWindow(win);				// Deallocates window memory + winSurface
 	SDL_DestroyRenderer(renderTarget);	// Deallocates the renderer
