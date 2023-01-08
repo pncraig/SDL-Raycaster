@@ -130,20 +130,31 @@ uint32_t calculateLighting(const uint32_t& color, const float& lighting)
 	return uint32_t{ red + green + blue + 0x000000FF };
 }
 
+// Interpolates t distance from a to b (sort of like a weighted average)
 uint32_t interpolateColors(uint32_t a, uint32_t b, float t)
 {
+	// Calculate each individual color stream of a
 	uint32_t ar{ a >> 24 };
 	uint32_t ag{ (a >> 16) - (ar << 8) };
 	uint32_t ab{ (a >> 8) - (ar << 16) - (ag << 8) };
 	
+	// Calculate each individual color stream of b
 	uint32_t br{ b >> 24 };
 	uint32_t bg{ (b >> 16) - (br << 8) };
 	uint32_t bb{ (b >> 8) - (br << 16) - (bg << 8) };
 
+	/*
+	*  t is a float between 0 and 1
+	*   a --------- t ------- b 
+	*   0     t        t - 1  1 
+	*/
+
+	// Interpolate the streams of a and b individually
 	uint32_t tr{ static_cast<uint32_t>(static_cast<float>(ar) * (1 - t) + static_cast<float>(br) * t) };
 	uint32_t tg{ static_cast<uint32_t>(static_cast<float>(ag) * (1 - t) + static_cast<float>(bg) * t) };
 	uint32_t tb{ static_cast<uint32_t>(static_cast<float>(ab) * (1 - t) + static_cast<float>(bb) * t) };
 
+	// Put the interpolated color back into a single integer
 	tr <<= 24;
 	tg <<= 16;
 	tb <<= 8;
@@ -151,15 +162,42 @@ uint32_t interpolateColors(uint32_t a, uint32_t b, float t)
 	return tr + tg + tb + 0x000000FF;
 }
 
+// Calculates the texel color using bilinear interpolation
 uint32_t getTexelColor(Texture* texture, float tx, float ty)
 {
+	/*
+	*	Website with an explanation of the algorithm: https://www.gabrielgambetta.com/computer-graphics-from-scratch/14-textures.html
+	*	TL is the top left texture pixel (the pixel you would get if you rounded the fractional parts of the texture coordinates down)
+	*	TR is the top right texture pixel
+	*	BL is the bottom left pixel
+	*	BR is the bottom right pixel
+	*	CT is the color interpolated from the top two pixels. CT = (1 - fx) * TL + fx * TR
+	*	CB is the color interpolated from the bottom two pixels. CB = (1 - fx) * BL + fx * BR
+	*	C is the color interpolated between CT and CB. C = (1 - fy) * CT + fy * CB
+	* 
+	*	TL-----fx-----CT--1 - fx--TR
+	*	|			  | 		   |
+	*	fy			  | 		   |
+	*	|			  | 		   |
+	*	|			  | 		   |
+	*	|-------------C------------|
+	*	|			  | 		   |
+	*	1-fy		  | 		   |
+	*	|			  | 		   |
+	*	BL------------CB-----------BR
+	* 
+	*/
+
+	// Fractional components of the texel coordinates
 	float fx{ tx - static_cast<int>(tx) };
 	float fy{ ty - static_cast<int>(ty) };
+
+	// Integer components of the texel coordinates
 	int ntx{ static_cast<int>(tx) };
 	int nty{ static_cast<int>(ty) };
 
-	int textureSize{ texture->m_width * texture->m_height };
-
+	// Get the four colors. Use modulus when adding +1 to prevent overflow errors 
+	// and loop it around to the other side of the texture
 	uint32_t TL{ (*texture)[nty * texture->m_width + ntx] };
 
 	uint32_t TR{ (*texture)[nty * texture->m_width + ((ntx + 1) % texture->m_width)] };
@@ -168,6 +206,7 @@ uint32_t getTexelColor(Texture* texture, float tx, float ty)
 
 	uint32_t BR{ (*texture)[((nty + 1) % texture->m_height) * texture->m_width + ((ntx + 1) % texture->m_width)] };
 
+	// Calculate the interpolations
 	uint32_t CT{ interpolateColors(TL, TR, fx) };
 	uint32_t CB{ interpolateColors(BL, BR, fx) };
 	
