@@ -20,7 +20,7 @@ const int height = 400;
 
 int projectionPlaneCenter{ height / 2 };	// The vertical center of the projection plane
 
-bool DEBUG{ false };	// Set equal to true for an overhead view of the scene
+bool DEBUG{ true };	// Set equal to true for an overhead view of the scene
 
 // Stores the distance to the scene at each column
 float zBuffer[width];
@@ -52,22 +52,12 @@ float playerY{ 353.454f };				// y-coordinate of the player in pixels, not grid 
 float playerSpeed{ 100.0f };			// Speed at which the player moves
 float playerTurnSpeed{ 75.0f };			// Speed with which the player can turn
 float playerLookUpSpeed{ 175.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
-float jumpTime{ 0.0f };
 
 // Used to calculate the time elapsed between frames
 float previousTime{};
 float currentTime{};
 float deltaTime{};
 float FPS{};
-
-// Tables which hold precalculated values for faster rendering
-//std::vector<float> sinTable(360 / FOV * width);
-//std::vector<float> iSinTable(360 / FOV * width);
-//std::vector<float> cosTable(360 / FOV * width);
-//std::vector<float> iCosTable(360 / FOV * width);
-//std::vector<float> tanTable(360 / FOV * width);
-//std::vector<float> iTanTable(360 / FOV * width);
-//std::vector<float> fishEyeTable(width);
 
 // Struct for debugging (holds an intersection point)
 struct point
@@ -81,18 +71,6 @@ std::vector<point> bPoints(width);		// Holds intersections with vertical gridlin
 std::vector<point> actualPoints(width);	// Holds the intersection points that are used in rendering
 std::vector<point> floorPoints{};		// Points where the floor texture is sampled
 
-
-// In RGBA format
-enum Color
-{
-	RED = 0xFF0000FF,
-	BLUE = 0x0000FFFF,
-	GREEN = 0x00FF00FF,
-	PURPLE = 0xFF00FFFF,
-	YELLOW = 0xFFFF00FF,
-	TEAL = 0x00FFFFFF,
-	WHITE = 0xFFFFFFFF,
-};
 
 // Convert an angle from degrees to radians (needed for use with trigonometric functions)
 float radians(float degrees)
@@ -252,32 +230,6 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-
-
-	// Fill the tables with the trig value of each possible ray angles (3600 of them with a 60 degree FOV and width of 600)
-	//for (int i{ 0 }; i < 360 / FOV * width; i++)
-	//{
-	//	float angle{ static_cast<float>(FOV) / width * i };
-	//	float rad{ radians(angle) };
-
-	//	sinTable[i] = sinf(rad);
-	//	iSinTable[i] = 1.0f / sinf(rad);
-	//	cosTable[i] = cosf(rad);
-	//	iCosTable[i] = 1.0f / cosf(rad);
-	//	tanTable[i] = tanf(rad);
-	//	iTanTable[i] = 1.0f / tanf(rad);
-	//}
-
-	//// No matter what theta equals, the difference between theta and the rayAngle will always be the same, so I just need to fill up the fish eye
-	//// distortion table with 600 values
-	//for (int a{ 0 }; a < width; a++)
-	//{
-	//	float rayAngle{ (theta + FOV * 0.5f) - (static_cast<float>(FOV) / width) * static_cast<float>(a) };
-	//	float angleDifference{ theta - rayAngle };
-
-	//	fishEyeTable[a] = cosf(radians(angleDifference));
-	//}
-
 
 	// Game loop
 	while (isRunning)
@@ -1016,21 +968,21 @@ int main(int argc, char* argv[])
 			SDL_RenderDrawLineF(renderTarget, normX, normY, normX + xSpeed * 1.0f, normY + ySpeed * 1.0f);
 
 			// Draw the horizontal intersecting rays
-			SDL_SetRenderDrawColor(renderTarget, 255, 255, 255, 0);
-			for (int i{ 0 }; i < aPoints.size(); i++)
-			{
-				float normPointX{ aPoints[i].x / (gridSize * gridWidth) * height + width };
-				float normPointY{ aPoints[i].y / (gridSize * gridHeight) * height };
-				SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
-			}
+			//SDL_SetRenderDrawColor(renderTarget, 255, 255, 255, 0);
+			//for (int i{ 0 }; i < aPoints.size(); i++)
+			//{
+			//	float normPointX{ aPoints[i].x / (gridSize * gridWidth) * height + width };
+			//	float normPointY{ aPoints[i].y / (gridSize * gridHeight) * height };
+			//	SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
+			//}
 
-			// Draw the vertically intersection rays
-			for (int i{ 0 }; i < bPoints.size(); i++)
-			{
-				float normPointX{ bPoints[i].x / (gridSize * gridWidth) * height + width };
-				float normPointY{ bPoints[i].y / (gridSize * gridHeight) * height };
-				SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
-			}
+			//// Draw the vertically intersection rays
+			//for (int i{ 0 }; i < bPoints.size(); i++)
+			//{
+			//	float normPointX{ bPoints[i].x / (gridSize * gridWidth) * height + width };
+			//	float normPointY{ bPoints[i].y / (gridSize * gridHeight) * height };
+			//	SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
+			//}
 
 			// Draw the rays which are used to render the scene
 			SDL_SetRenderDrawColor(renderTarget, 255, 0, 0, 0);
