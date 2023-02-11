@@ -55,7 +55,7 @@ vec2 Ray::cast(const std::string& map, int mapWidth, int mapHeight, int gridSize
 		aX = m_x - (aY - m_y) / tanOfRayAngle;
 
 		// Make part of the grid below for ease of checking for a wall
-		aY--;
+		aY -= 0.1f;
 	}
 	// If ray is facing down... (or upwards on the coordinate grid)
 	else
@@ -180,7 +180,7 @@ vec2 Ray::cast(const std::string& map, int mapWidth, int mapHeight, int gridSize
 		// Calculate the y-coordinate of the first intersection with a vertical gridline
 		bY = m_y + (m_x - bX) * tanOfRayAngle;
 
-		bX--;
+		bX -= 0.1f;
 	}
 
 	// Same process as with the horizontal intersection code

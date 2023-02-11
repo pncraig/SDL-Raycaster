@@ -627,7 +627,7 @@ int main(int argc, char* argv[])
 				// Get the color of the texture at the point on the wall (x, y)
 				// uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn] };
 				uint32_t color{};
-
+				
 				if (wallHeight > wallTexture->m_height)
 					color = getTexelColor(wallTexture, textureX, textureY);
 				else
