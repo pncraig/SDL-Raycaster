@@ -29,7 +29,7 @@ const int gridSize{ 64 };		// Side length of an individual grid block
 const int gridWidth{ 20 };		// Width of the whole map in terms of grid blocks
 const int gridHeight{ 20 };		// Height of the whole map in terms of grid blocks
 std::string gridMap{};	// String which stores the map
-std::vector<int> wallHeights(gridWidth * gridHeight);
+std::vector<int> wallHeights(gridWidth * gridHeight);	// Stores the wall height in each grid spot
 
 Texture* wallTextureLocations[gridWidth * gridHeight];
 Texture* floorTextureLocations[gridWidth * gridHeight];
@@ -38,7 +38,7 @@ Texture* ceilingTextureLocations[gridWidth * gridHeight];
 // Vector which holds all the sprites
 std::vector<Sprite> sprites{};
 
-int FOV{ 60 };							// Field of view of player
+int FOV{ 90 };							// Field of view of player
 int distanceToProjectionPlane{ 277 };	// Distance of the "camera" (player) to the "projection plane" (screen)
 
 int playerHeight{ gridSize / 2 };		// Height of player (typically half of gridSize)
@@ -47,9 +47,9 @@ int playerRadius{ 15 };					// Radius of player
 // The "adjusted" distance to the projection plane, used so that I can adjust the field of view
 float adjustedDistanceToProjectionPlane{ (width / 2) / fabs(tanf((FOV / 2) * (M_PI / 180.0f))) };
 
-float theta{ 0.0f };					// Angle of the player
-float playerX{ 432.224f };				// x-coordinate of the player in pixels, not grid coordinates
-float playerY{ 353.454f };				// y-coordinate of the player in pixels, not grid coordinates
+float theta{ -49.175f };					// Angle of the player
+float playerX{ 64.0f };				// x-coordinate of the player in pixels, not grid coordinates
+float playerY{ 64.0f };				// y-coordinate of the player in pixels, not grid coordinates
 float playerSpeed{ 100.0f };			// Speed at which the player moves
 float playerTurnSpeed{ 75.0f };			// Speed with which the player can turn
 float playerLookUpSpeed{ 175.0f };		// Speed with which the player can look up and down (modifies projectionPlaneCenter variable)
@@ -60,17 +60,15 @@ float currentTime{};
 float deltaTime{};
 float FPS{};
 
-// Struct for debugging (holds an intersection point)
-struct point
+struct Point
 {
-	float x{};
-	float y{};
+	float x;
+	float y;
 };
 
-std::vector<point> aPoints(width);		// Holds intersections with horizontal gridlines
-std::vector<point> bPoints(width);		// Holds intersections with vertical gridlines
-std::vector<point> actualPoints(width);	// Holds the intersection points that are used in rendering
-std::vector<point> floorPoints{};		// Points where the floor texture is sampled
+std::vector<Point> aPoints{};
+std::vector<Point> bPoints{};
+std::vector<Point> vPoints{};
 
 enum Side
 {
@@ -113,6 +111,17 @@ float getCoterminalAngle(float angle)
 	else if (angle >= 360.0f)
 		return angle - (static_cast<int>(angle / 360) * 360);
 	else return angle;
+}
+
+float clamp(float x, float lo, float hi)
+{
+	if (x > hi)
+		return hi;
+
+	if (x < lo)
+		return lo;
+
+	return x;
 }
 
 uint32_t calculateLighting(const uint32_t& color, const float& lighting)
@@ -405,53 +414,6 @@ CastPoint rayCast(const std::string& map, float x, float y, float theta)
 	return intersection;
 }
 
-int getGridX(const CastPoint& intersection)
-{
-	int x{ static_cast<int>(intersection.x) };
-	int y{ static_cast<int>(intersection.y) };
-
-	int gridSpaceColumn{};
-	switch (intersection.side)
-	{
-		// If the ray hit the top of a wall...
-	case Top:
-	{
-		// First column on the top of the wall; at the top left corner of the wall
-		int gridX{ static_cast<int>(x / gridSize) * gridSize + (gridSize - 1) };
-		gridSpaceColumn = gridX - x;
-	}
-		break;
-		// If the ray hit the right side of a wall...
-	case Right:
-	{
-		// First column on the right side of the wall; at the bottom right corner of the wall
-		int gridY{ static_cast<int>(y / gridSize) * gridSize + (gridSize - 1) };
-		gridSpaceColumn = gridY - y;
-	}
-		break;
-		// If the ray hit the bottom of a wall...
-	case Bottom:
-	{
-		// First column on the bottom of the wall; at the bottom right corner of the wall
-		int gridX{ static_cast<int>(x / gridSize) * gridSize };
-		gridSpaceColumn = x - gridX;
-	}
-		break;
-		// If the ray hit the left side of a wall...
-	case Left:
-	{
-		// First column on the left side of the wall; at the top left corner of the wall
-		int gridY{ static_cast<int>(y / gridSize) * gridSize };
-		gridSpaceColumn = y - gridY;
-	}
-		break;
-	}
-
-	return gridSpaceColumn;
-}
-
-
-
 int main(int argc, char* argv[])
 {
 	// SDL_Init() returns a negative number upon failure, and SDL_INIT_EVERYTHING sets all the flags to true
@@ -505,6 +467,14 @@ int main(int argc, char* argv[])
 	Texture spriteTexture{ "greenlight.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture spriteTexture2{ "pillar.png", SDL_PIXELFORMAT_RGBA8888 };
 
+	Texture* wallTexture{ &colorstone };
+	Texture* floorTexture1{ &greystone };
+	Texture* floorTexture2{ &bluestone };
+	Texture* ceilingTexture{ &wood };
+
+	float sumOfFPS{ 0.0f };
+	int numFrames{ 0 };
+
 	// Add sprites to the sprite array
 	/*sprites.push_back(Sprite{ &spriteTexture, gridSize * 5.5f, gridSize * 17.5f });
 	sprites.push_back(Sprite{ &spriteTexture, 350.0f + 127.0f, 350.0f });
@@ -513,73 +483,45 @@ int main(int argc, char* argv[])
 	sprites.push_back(Sprite{ {&front, &right, &back, &left}, 16.0f * gridSize, 5.0f * gridSize, 0.0f });*/
 
 	// Create the map
-	gridMap += "####################";
-	gridMap += "#--------##--------#";
-	gridMap += "#####-#####--------#";
-	gridMap += "#------------------#";
-	gridMap += "#------------------#";
-	gridMap += "#-##-----##--------#";
-	gridMap += "#-##-----##--------#";
-	gridMap += "#--------##--------#";
-	gridMap += "#--####--##--------#";
-	gridMap += "#-########--########";
-	gridMap += "#-######---#########";
-	gridMap += "#---#----##--------#";
-	gridMap += "#-#---#########-####";
-	gridMap += "#####-----#--------#";
-	gridMap += "#-----#------------#";
-	gridMap += "##-#-##--##-##---#-#";
-	gridMap += "#--#-###-##-##-----#";
-	gridMap += "#-##--#--##--------#";
-	gridMap += "#--####--##--####--#";
-	gridMap += "####################";
+	wallHeights = {
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	45,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	40,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	35,	0,	0,	0,	64,
+		64, 0,  64,	0,	0,	64,	0,	0,	0,	16, 64, 0,  64,	0,	0,	30,	0,	0,	0,	64,
+		64, 0,	0,	64,	0,	64,	0,	0,	0,	16, 64, 0,	0,	64,	0,	25,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	16, 16, 0,	0,	0,	0,	20,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	15,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	10,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	 0,  0, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,  32, 16,	0,	0,	0,	0,	0,	64, 64, 0,  64, 64,	0,	0,	0,	0,	0,	64,
+		64, 0,  48,	32,	0,	0,	0,	0,	0,	64, 64, 0,  64,	64,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
+	};
 
-	for (int x{ 0 }; x < gridWidth; x++)
-	{
-		for (int y{ 0 }; y < gridHeight; y++)
-		{
-			if (gridMap[y * gridWidth + x] == '#')
-			{
-				wallHeights[y * gridWidth + x] = gridSize;
-			}
-			else if (gridMap[y * gridWidth + x] == ' -' )
-			{
-				wallHeights[y * gridWidth + x] = 0;
-			}
-		}
-	}
-
-	wallHeights[5 * gridWidth + 15] = gridSize / 2;
-	wallHeights[5 * gridWidth + 9] = gridSize / 2;
-
+	// Create a string map
 	for (int y{ 0 }; y < gridHeight; y++)
 	{
 		for (int x{ 0 }; x < gridWidth; x++)
 		{
-			int location{ y * gridWidth + x };
-			if (gridMap[location] == '#')
+			if (wallHeights[y * gridWidth + x] == 0)
 			{
-				floorTextureLocations[location] = &noTexture;
-				ceilingTextureLocations[location] = &noTexture;
-
-				if (x < gridWidth / 2 && y < gridHeight / 2)
-					wallTextureLocations[location] = &redbrick;
-				else if (x > gridWidth / 2 && y < gridHeight / 2)
-					wallTextureLocations[location] = &purplestone;
-				else if (x < gridWidth / 2 && y < gridHeight)
-					wallTextureLocations[location] = &bluestone;
-				else
-					wallTextureLocations[location] = &eagle;
+				gridMap += '-';
 			}
 			else
 			{
-				wallTextureLocations[location] = &noTexture;
-
-				ceilingTextureLocations[location] = &mossy;
-				floorTextureLocations[location] = &wood;
+				gridMap += '#';
 			}
 		}
 	}
+
 
 	// Game loop
 	while (isRunning)
@@ -649,6 +591,8 @@ int main(int argc, char* argv[])
 		for (int i{ 0 }; i < width * height; i++)
 			screen[i] = 0xFF000000;
 
+		// Movement + collision
+		
 		// Calculate the seperate speed components of the player
 		float xSpeed{};
 		float ySpeed{};
@@ -708,9 +652,10 @@ int main(int argc, char* argv[])
 			playerHeight = gridSize - 1;
 		else if (playerHeight <= 0)
 			playerHeight = 1;
-
+		
 
 		// Collision detection
+		/*
 		int playerGridOffsetX{ static_cast<int>(playerX) - (gridX * gridSize) };
 		int playerGridOffsetY{ static_cast<int>(playerY) - (gridY * gridSize) };
 
@@ -735,9 +680,170 @@ int main(int argc, char* argv[])
 			if (gridMap[(gridY + 1) * gridWidth + gridX] == '#' && gridSize - playerGridOffsetY < playerRadius)
 				playerY -= ySpeed * deltaTime;
 		}
+		*/
+		
+		// Precalculate some values that will be used in the loops below
+		float cosOfThetaMinusHalfFOV{ cos(radians(theta - FOV * 0.5f)) };
+		float sinOfThetaMinusHalfFOV{ sin(radians(theta - FOV * 0.5f)) };
 
-		if (DEBUG)
-			floorPoints.clear();
+		float cosOfThetaPlusHalfFOV{ cos(radians(theta + FOV * 0.5f)) };
+		float sinOfThetaPlusHalfFOV{ sin(radians(theta + FOV * 0.5f)) };
+
+		float cosOfHalfFOV{ cos(radians(FOV * 0.5f)) };
+		
+		// Draw Floor
+		// Loop over every horizontal line from the center of the projection plane down. Exclude the line at the center because
+		// it would cause a divide by 0 error
+		for (int y{ projectionPlaneCenter + 1 }; y < height; y++)
+		{
+			// Calculate how far the strip of floor corresponding to the horizontal line on the projection plane is from the player
+			float distanceToStripe{ (distanceToProjectionPlane * static_cast<float>(playerHeight)) / (y - projectionPlaneCenter) };
+
+			// Calculate the corrected distance (the walls are calculated with the corrected distance, so the floor must be as well)
+			float correctedDistance{ distanceToStripe / cosOfHalfFOV };
+
+			// Calculate the point on the horizontal stripe to the far left of the FOV
+			float adX{ correctedDistance * cosOfThetaMinusHalfFOV };
+			float adY{ correctedDistance * -sinOfThetaMinusHalfFOV };
+
+			float aX{ playerX + adX };
+			float aY{ playerY + adY };
+
+			// aPoints.push_back(Point{ aX, aY });
+
+			// Calculate the point on the horizontal stripe to the far right of the FOV
+			float bdX{ correctedDistance * cosOfThetaPlusHalfFOV };
+			float bdY{ correctedDistance * -sinOfThetaPlusHalfFOV };
+
+			float bX{ playerX + bdX };
+			float bY{ playerY + bdY };
+
+			// bPoints.push_back(Point{ bX, bY });
+
+			// Calculate a vector that points from point A to point B
+			float vX{ bX - aX };
+			float vY{ bY - aY };
+
+			// Divide the vector by the width of the screen so that each time the vector is added to point A, a new pixel 
+			// on the screen is represented
+			float floorStepX{ vX / width };
+			float floorStepY{ vY / width };
+
+			Texture* floorTexture{};
+
+			// A for loop that goes accross the horizontal line
+			for (int x{ width - 1 }; x >= 0; x--)
+			{
+
+				// vPoints.push_back(Point{ aX, aY });
+
+				// Calculate the coordinates of the grid square the point on the floor is in
+				int gridX{ static_cast<int>(aX / gridSize) * gridSize };
+				int gridY{ static_cast<int>(aY / gridSize) * gridSize };
+
+				/*float num{ gridX * gridY / static_cast<float>(width * height) };
+				unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
+				screen[y * width + x] = color;
+				*/
+
+				if ((gridX / gridSize + gridY / gridSize) % 2 == 0)
+					floorTexture = floorTexture1;
+				else
+					floorTexture = floorTexture2;
+
+				// Calculate the normalized coordinates of the point in terms of the grid square it is in
+				float normX{ (static_cast<int>(aX) - gridX) / static_cast<float>(gridSize) };
+				float normY{ (static_cast<int>(aY) - gridY) / static_cast<float>(gridSize) };
+
+				// Calculate where those normalized coordinates fall on the texture of the floor
+				int textureX{ static_cast<int>(normX * floorTexture->m_width) };
+				int textureY{ static_cast<int>(normY * floorTexture->m_height) };
+
+				// Write the color to the screen array
+				if (textureY * floorTexture->m_width + textureX >= 0 && textureY * floorTexture->m_width + textureX < floorTexture->m_height * floorTexture->m_width)
+				{
+					screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
+				}
+
+				// Increment point A to get the next point on the floor
+				aX += floorStepX;
+				aY += floorStepY;
+			}
+		}
+		
+		// Draw Ceiling
+		// Loop over every horizontal line from the center of the projection plane down. Exclude the line at the center because
+		// it would cause a divide by 0 error
+		for (int y{ projectionPlaneCenter - 1 }; y >= 0; y--)
+		{
+			// Calculate how far the strip of ceiling corresponding to the horizontal line on the projection plane is from the player
+			float distanceToStripe{ (distanceToProjectionPlane * static_cast<float>(gridSize - playerHeight)) / (projectionPlaneCenter - y) };
+
+			// Calculate the corrected distance (the walls are calculated with the corrected distance, so the ceiling must be as well)
+			float correctedDistance{ distanceToStripe / cosOfHalfFOV };
+
+			// Calculate the point on the horizontal stripe to the far left of the FOV
+			float adX{ correctedDistance * cosOfThetaMinusHalfFOV };
+			float adY{ correctedDistance * -sinOfThetaMinusHalfFOV };
+
+			float aX{ playerX + adX };
+			float aY{ playerY + adY };
+
+			// aPoints.push_back(Point{ aX, aY });
+
+			// Calculate the point on the horizontal stripe to the far right of the FOV
+			float bdX{ correctedDistance * cosOfThetaPlusHalfFOV };
+			float bdY{ correctedDistance * -sinOfThetaPlusHalfFOV };
+
+			float bX{ playerX + bdX };
+			float bY{ playerY + bdY };
+
+			// bPoints.push_back(Point{ bX, bY });
+
+			// Calculate a vector that points from point A to point B
+			float vX{ bX - aX };
+			float vY{ bY - aY };
+
+			// Divide the vector by the width of the screen so that each time the vector is added to point A, a new pixel 
+			// on the screen is represented
+			float floorStepX{ vX / width };
+			float floorStepY{ vY / width };
+
+			// A for loop that goes accross the horizontal line
+			for (int x{ width - 1 }; x >= 0; x--)
+			{
+
+				// vPoints.push_back(Point{ aX, aY });
+
+				// Calculate the coordinates of the grid square the point on the ceiling is in
+				int gridX{ static_cast<int>(aX / gridSize) * gridSize };
+				int gridY{ static_cast<int>(aY / gridSize) * gridSize };
+
+				/*
+				float num{ gridX * gridY / static_cast<float>(width * height) };
+				unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
+				screen[y * width + x] = color;
+				*/
+
+				// Calculate the normalized coordinates of the point in terms of the grid square it is in
+				float normX{ (static_cast<int>(aX) - gridX) / static_cast<float>(gridSize) };
+				float normY{ (static_cast<int>(aY) - gridY) / static_cast<float>(gridSize) };
+
+				// Calculate where those normalized coordinates fall on the texture of the ceiling
+				int textureX{ static_cast<int>(normX * ceilingTexture->m_width) };
+				int textureY{ static_cast<int>(normY * ceilingTexture->m_height) };
+
+				// Write the color to the screen array
+				if (textureY * ceilingTexture->m_width + textureX >= 0 && textureY * ceilingTexture->m_width + textureX < ceilingTexture->m_height * ceilingTexture->m_width)
+				{
+					screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
+				}
+
+				// Increment point A to get the next point on the floor
+				aX += floorStepX;
+				aY += floorStepY;
+			}
+		}
 
 		// Send a ray out into the scene for each vertical row of pixels in the screen array
 		for (int x{ 0 }; x < width; x++)
@@ -748,102 +854,277 @@ int main(int argc, char* argv[])
 			// Find the angle of the ray
 			float rayAngle{ theta - angleBetween };
 
-			Texture* wallTexture{};
-			Texture* floorTexture{};
-
 			// Precalculate some values that will be used in the floor and ceiling casting loops below
 			float cosOfRayAngle{ cosf(radians(rayAngle)) };
 			float sinOfRayAngle{ sinf(radians(rayAngle)) };
 			float cosOfThetaMinusRayAngle{ cosf(radians(theta - rayAngle)) };
 
-			int previousTopOfWall{ height };
-			int previousWallHeight{ 0 };
-			int floorHeight{ 0 };
+			int currentHeight{ wallHeights[static_cast<int>(playerY / gridSize) * gridWidth + static_cast<int>(playerX / gridSize)] };
 
-			float totalDistance{ 0.0f };
+			int previousTopOfWall{ height };	// Saves the position of the top of the previous wall on the projection plane to draw the floor on top of that wall
+			int previousWallHeight{ currentHeight };		// Saves the height of the previous wall to calculate where the next wall begins on the projection plane
 
-			CastPoint intersection{ rayCast(gridMap, playerX, playerY, rayAngle) };
+			float light{ 255.0f };
+
+			// Distance from the player to the current intersection with the grid (this version of the raycasters checks every intersection 
+			// between the ray and the grid)
+			float distance{ 0.0f };
+
+			// A number on the interval 0 < gridSpaceColumn < gridSize. The column on the grid where the ray intersects the wall
+			int gridSpaceColumn{};
+
+			// Precalculate a value that will be used more times
+			float tanOfRayAngle{ tanf(radians(rayAngle)) };
+
+			// Find the angle of the ray on the interval 0 <= rayAngle < 360
+			rayAngle = getCoterminalAngle(rayAngle);
+
+			if (rayAngle == 360.0f)
+				rayAngle = 0.0f;
+
+			// These two boolean values are used to determine how to texture the wall by determining which side of the wall the ray hit
+			bool topOrBottom{};	// True means the ray hit the top of the wall, false means it hit the bottom
+			bool leftOrRight{};	// True means the ray hit the left of the wall, false means it hit the right
+
+			// Point I is the intersection point (chosen between A and B)
+			float iX{};
+			float iY{};
+
+			// CALCULATE HORIZONTAL INTERSECTIONS
+
+			// Distance to intersection with horizontal grid line
+			float horizontalDistance{ -1.0f };
+
+			// Point A is the point of the first intersection between the ray and the horizontal grid lines
+			float aX{};
+			float aY{};
+
+			// The change between point A and the next intersection with the horizontal grid lines
+			float adX{};
+			float adY{};
+
+			// If the ray is facing up... (or downwards on the coordinate grid)
+			if (rayAngle < 180)
+			{
+				// Because the ray is pointing up, that means it will hit the bottoms of the wall
+				topOrBottom = false;
+
+				// The first intersection will be part of the grid below (calculates y-coordinate of grid line below)
+				aY = floorf(playerY / static_cast<float>(gridSize)) * gridSize;
+
+				// The next intersection with a horizontal grid line will be gridSize units below
+				adY = -static_cast<float>(gridSize);
+
+				//	      90					90		
+				//  -x,-y | +x,-y			-tan | +tan
+				// 180 ---+--- 0		  180 ---+--- 0	
+				//	-x,+y |	+x,+y			+tan | -tan
+				//		 270				    270		
+				// When rayAngle < 90, dx should be >0, and when rayAngle > 90, dx should be <0
+				// It just so happens that tan is >0 when rayAngle < 90 degrees, and tan is <0 when rayAngle > 90
+				// so I don't have to change the signs at all
+				adX = gridSize / tanOfRayAngle;
+
+				// Calculate the x-coordinate of the first intersection with a horizontal gridline
+				aX = playerX - (aY - playerY) / tanOfRayAngle;
+
+				// Make part of the grid below for ease of checking for a wall
+				aY--;
+			}
+			// If ray is facing down... (or upwards on the coordinate grid)
+			else
+			{
+				// The ray is facing down, so the ray hits the top of the wall
+				topOrBottom = true;
+
+				// The first horizontal grid intersection is with the grid line above the player
+				aY = floorf(playerY / static_cast<float>(gridSize)) * gridSize + gridSize;
+
+				// The next gridline with be gridSize units above the player
+				adY = static_cast<float>(gridSize);
+
+				//	      90					90		
+				//  -x,-y | +x,-y			-tan | +tan
+				// 180 ---+--- 0		  180 ---+--- 0	
+				//	-x,+y |	+x,+y			+tan | -tan
+				//		 270				    270		
+				// When rayAngle < 270, dx should be <0, and when rayAngle > 270, dx should be >0
+				// It just so happens that tan is >0 when rayAngle < 270 degrees, and tan is <0 when rayAngle > 270
+				// so I have to flip the signs with the negative
+				adX = -gridSize / tanOfRayAngle;
+
+				// Calculate the x-coordinate of the first intersection with a horizontal gridline
+				aX = playerX - (aY - playerY) / tanOfRayAngle;
+			}
+
+			// CALCULATE VERTICAL INTERSECTIONS (very similar to calculating horizontal intersections)
+
+			// Distance to intersection with vertical grid line
+			float verticalDistance{ -1.0f };
+
+			// Point B is the point of the first intersection between the ray and the vertical grid lines
+			float bX{};
+			float bY{};
+
+			// The change between point B and the next intersection with the vertical grid lines
+			float bdX{};
+			float bdY{};
+
+			// If the ray is facing to the right...
+			if (rayAngle < 90.0f || rayAngle > 270.0f)
+			{
+				// The ray is facing to the right, so it will hit the left wall
+				leftOrRight = true;
+
+				// The first intersection will be in a grid to the right of the current grid
+				bX = floorf(playerX / gridSize) * gridSize + gridSize;
+
+				// The ray is moving in a positive x-direction
+				bdX = static_cast<float>(gridSize);
+
+				//	      90					90		
+				//  -x,-y | +x,-y			-tan | +tan
+				// 180 ---+--- 0		  180 ---+--- 0	
+				//	-x,+y |	+x,+y			+tan | -tan
+				//		 270				    270		
+				// When rayAngle < 180, dy should be <0, and when rayAngle > 180, dy should be >0
+				// It just so happens that tan is >0 when rayAngle < 180 degrees, and tan is <0 when rayAngle > 180
+				// so I have to flip the signs with the negative
+				bdY = -tanOfRayAngle * gridSize;
+
+				// Calculate the y-coordinate of the first intersection with a vertical gridline
+				bY = playerY + (playerX - bX) * tanOfRayAngle;
+			}
+			// If the ray is facing to the left...
+			else
+			{
+				// The ray is facing left so it will hit the wall to the right
+				leftOrRight = false;
+
+				// The first intersection will be in a grid to the left
+				bX = floorf(playerX / gridSize) * gridSize;
+
+				// The ray is moving in a negative x-direction
+				bdX = -static_cast<float>(gridSize);
+
+				//	      90					90		
+				//  -x,-y | +x,-y			-tan | +tan
+				// 180 ---+--- 0		  180 ---+--- 0	
+				//	-x,+y |	+x,+y			+tan | -tan
+				//		 270				    270		
+				// When rayAngle < 180, dy should be <0, and when rayAngle > 180, dy should be >0
+				// It just so happens that tan is <0 when rayAngle < 180 degrees, and tan is >0 when rayAngle > 180
+				// so I don't have to change the signs at all
+				bdY = tanOfRayAngle * gridSize;
+
+				// Calculate the y-coordinate of the first intersection with a vertical gridline
+				bY = playerY + (playerX - bX) * tanOfRayAngle;
+
+				bX--;
+			}
+
+			// Determine which initial point (point A or point B) is closer to the player
+			horizontalDistance = (playerX - aX) * (playerX - aX) + (playerY - aY) * (playerY - aY);
+			verticalDistance = (playerX - bX) * (playerX - bX) + (playerY - bY) * (playerY - bY);
+
+			// If the intersection with the horizontal grid lines is closer...
+			if (horizontalDistance < verticalDistance)
+			{
+				// The distance is equal to the horizontal distance
+				distance = sqrt(horizontalDistance);
+
+				// The first intersection is equal to the horizontal intersection
+				iX = aX;
+				iY = aY;
+
+				// Subtract the vertical change in x and y from the first vertical intersection. This is so that in the while
+				// loop, when I am checking to see if the horizontal or vertical intersection is closer, it will consider the first vertical 
+				// intersection rather than the one after
+				bX -= bdX;
+				bY -= bdY;
+
+				light = 255.0f;
+
+				// If the ray hit the top of the wall...
+				if (topOrBottom)
+				{
+					// First column on the top of the wall; at the top left corner of the wall
+					int gridX{ static_cast<int>(iX / gridSize) * gridSize + (gridSize - 1) };
+					gridSpaceColumn = gridX - static_cast<int>(iX);
+				}
+				// Otherwise it hit the bottom of the wall
+				else
+				{
+					// First column on the bottom of the wall; at the bottom right corner of the wall
+					int gridX{ static_cast<int>(iX / gridSize) * gridSize };
+					gridSpaceColumn = static_cast<int>(iX) - gridX;
+				}
+			}
+			// Otherwise the intersection with the vertical grid lines is closer
+			else
+			{
+				// The distance is equal to the vertical distance
+				distance = sqrt(verticalDistance);
+
+				// The first intersection is the vertical intersection
+				iX = bX;
+				iY = bY;
+
+				// Subtract the horizontal change in x and y from the first horizontal intersection. This is so that in the while
+				// loop, when I am checking to see if the horizontal or vertical intersection is closer, it will consider the first horizontal 
+				// intersection rather than the one after
+				aX -= adX;
+				aY -= adY;
+
+				light = 128.0f;
+
+				// If the ray hit the left side of the wall...
+				if (leftOrRight)
+				{
+					// First column on the left side of the wall; at the top left corner of the wall
+					int gridY{ static_cast<int>(iY / gridSize) * gridSize };
+					gridSpaceColumn = static_cast<int>(iY) - gridY;
+				}
+				// Otherwise it hit the right side of the wall
+				else
+				{
+					// First column on the right side of the wall; at the bottom right corner of the wall
+					int gridY{ static_cast<int>(iY / gridSize) * gridSize + (gridSize - 1) };
+					gridSpaceColumn = gridY - static_cast<int>(iY);
+				}
+			}
 
 			bool finished{ false };
 			while (!finished)
 			{
-				totalDistance += intersection.dist;
+				// Calculate which grid square the intersection belongs to
+				int intersectionGridX{ static_cast<int>(iX / gridSize) };
+				int intersectionGridY{ static_cast<int>(iY / gridSize) };
 
-				float distance{ totalDistance };
+				float num{ intersectionGridX * intersectionGridY / static_cast<float>(gridWidth * gridHeight) };
+				// unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
+				
 
-				int intersectionGridX{ static_cast<int>(intersection.x / gridSize) };
-				int intersectionGridY{ static_cast<int>(intersection.y / gridSize) };
-				wallTexture = wallTextureLocations[intersectionGridY * gridWidth + intersectionGridX];
+				// Look up the height of the wall at those grid coordinates
 				int variableHeight{ wallHeights[intersectionGridY * gridWidth + intersectionGridX] };
 
-				// If the wall height of the current wall is less than that of the previous wall, that means 
-				// it will be obstructed from view and therefore shouldn't be drawn
-				if (variableHeight < previousWallHeight)
-					continue;
-
-				int gridSpaceColumn{ getGridX(intersection) };
-
 				// Correct fish-eye distortion for the actual rendering of the walls
-				distance *= cosf(radians(theta - rayAngle));
+				float renderingDistance{ distance * cosf(radians(theta - rayAngle)) };
 
 				// I use the fisheye corrected distance because the comparison in the sprite rendering loop uses the fisheye corrected distance
 				// to the sprite
 				// zBuffer[x] = distance;
 
 				// Calculate the height of the wall
-				int wallHeight{ static_cast<int>((distanceToProjectionPlane / distance) * variableHeight) };
+				int wallHeight{ static_cast<int>((distanceToProjectionPlane / renderingDistance) * variableHeight) + 1 };
 
 				// Y-coordinates of the bottom and top of the wall. Calculated in terms of player height and projection plane center (using similar
 				// triangles) so that when the player height changes, the location of the wall will as well
-				//	int bottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / distance) };
-				int bottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * (playerHeight - previousWallHeight)) / distance) };
-				int topOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / distance) - wallHeight };
+				int bottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / renderingDistance) };
+				int topOfWall{ bottomOfWall - wallHeight };
 
-				// Floor cast
-				// y is a point on the projection plane from the bottom of the wall to the end of the screen
-
-
-				for (int y{ std::max(0, bottomOfWall) }; y < previousTopOfWall; y++)
-				{
-					// The straight, vertical line distance to the point on the floor
-					float straightDistance{ static_cast<float>((playerHeight - previousWallHeight) * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
-
-					// The corrected distance to the point on the floor (reverse fisheye)
-					float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
-
-					// x and y components of a vector with a length of correctedDistance and angle of rayAngle
-					float dx{ correctedDistance * cosOfRayAngle };
-					float dy{ correctedDistance * -sinOfRayAngle };
-
-					// Calculate the location on the floor of the map of the current point
-					float pX{ playerX + dx };
-					float pY{ playerY + dy };
-
-					// Check if the point is outside the map. Happens when the player's height is very small
-					if (pX < 0.0f || pX >= gridWidth * gridSize || pY < 0.0f || pY >= gridHeight * gridSize)
-						continue;
-
-					// Calculate the pixel coordinates of the grid square point P is in
-					int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
-					int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
-
-					floorTexture = floorTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
-
-					// Find the coordinates of point P within the grid square and normalize them
-					float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
-					float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
-
-					// Calculate the coordinates of point P in texture space
-					int textureX{ static_cast<int>(normX * floorTexture->m_width) };
-					int textureY{ static_cast<int>(normY * floorTexture->m_height) };
-
-					int i{ textureY * floorTexture->m_width + textureX };
-
-					if (i < 0)
-						std::cout << "Column: " << x << ", Row: " << y << '\n';
-
-					screen[y * width + x] = (*floorTexture)[textureY * floorTexture->m_width + textureX];
-				}
+				if (bottomOfWall > previousTopOfWall)
+					bottomOfWall = previousTopOfWall;
 
 				// The column on the texture which corresponds to the position of the ray intersection with the wall
 				int textureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
@@ -861,69 +1142,121 @@ int main(int argc, char* argv[])
 					// Get the color of the texture at the point on the wall (x, y)
 					uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + textureSpaceColumn] };
 
-					screen[y * width + x] = color;
+					screen[y * width + x] = calculateLighting(color, light);
+					// screen[y * width + x] = color;
 				}
 
 				// Update previousWallHeight now that its purpose has been fulfilled
 				previousWallHeight = variableHeight;
 
-				previousTopOfWall = topOfWall;
+				previousTopOfWall = std::min(previousTopOfWall, topOfWall);
+				
+				// Determine which initial point (point A or point B) is closer to the player
+				horizontalDistance = (playerX - (aX + adX)) * (playerX - (aX + adX)) + (playerY - (aY + adY)) * (playerY - (aY + adY));
+				verticalDistance = (playerX - (bX + bdX)) * (playerX - (bX + bdX)) + (playerY - (bY + bdY)) * (playerY - (bY + bdY));
 
-				// If the heigh of the wall is the max height, then there is no need to continue finding 
-				// wall intersections because this wall obstructs them from view
-				if (variableHeight == gridSize || topOfWall < 0)
-					finished = true;
+				if (horizontalDistance < verticalDistance)
+				{
+					distance = sqrt(horizontalDistance);
+					aX += adX;
+					aY += adY;
+					iX = aX;
+					iY = aY;
+
+					light = 255.0f;
+
+					// If the ray hit the top of the wall...
+					if (topOrBottom)
+					{
+						// First column on the top of the wall; at the top left corner of the wall
+						int gridX{ static_cast<int>(iX / gridSize) * gridSize + (gridSize - 1) };
+						gridSpaceColumn = gridX - static_cast<int>(iX);
+					}
+					// Otherwise it hit the bottom of the wall
+					else
+					{
+						// First column on the bottom of the wall; at the bottom right corner of the wall
+						int gridX{ static_cast<int>(iX / gridSize) * gridSize };
+						gridSpaceColumn = static_cast<int>(iX) - gridX;
+					}
+				}
 				else
-					intersection = rayCast(gridMap, intersection.x, intersection.y, rayAngle);
+				{
+					distance = sqrt(verticalDistance);
+					bX += bdX;
+					bY += bdY;
+					iX = bX;
+					iY = bY;
+
+					light = 128.0f;
+
+					// If the ray hit the left side of the wall...
+					if (leftOrRight)
+					{
+						// First column on the left side of the wall; at the top left corner of the wall
+						int gridY{ static_cast<int>(iY / gridSize) * gridSize };
+						gridSpaceColumn = static_cast<int>(iY) - gridY;
+					}
+					// Otherwise it hit the right side of the wall
+					else
+					{
+						// First column on the right side of the wall; at the bottom right corner of the wall
+						int gridY{ static_cast<int>(iY / gridSize) * gridSize + (gridSize - 1) };
+						gridSpaceColumn = gridY - static_cast<int>(iY);
+					}
+				}
+
+				float backRenderingDistance{ distance * cos(radians(theta - rayAngle)) };
+
+				int backWallHeight{ static_cast<int>((distanceToProjectionPlane / backRenderingDistance) * variableHeight) + 1 };
+
+				int backBottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / backRenderingDistance) };
+				int backTopOfWall{ backBottomOfWall - backWallHeight };
+
+				if (backBottomOfWall > previousTopOfWall)
+					backBottomOfWall = previousTopOfWall;
+
+				// The column on the texture which corresponds to the position of the ray intersection with the wall
+				int backTextureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
+
+				int minBetweenHeightAndBackBottomOfWall{ std::min(height, backBottomOfWall) };
+
+				// Draw the wall sliver
+				for (int y{ std::max(backTopOfWall, 0) }; y < minBetweenHeightAndBackBottomOfWall; y++)
+				{
+					// The row on the texture
+					int backTextureSpaceRow{ static_cast<int>((y - backTopOfWall) / static_cast<float>(backWallHeight) * wallTexture->m_height) };
+
+					// Get the color of the texture at the point on the wall (x, y)
+					uint32_t color{ (*wallTexture)[backTextureSpaceRow * wallTexture->m_width + backTextureSpaceColumn] };
+
+					screen[y * width + x] = calculateLighting(color, light);
+					// screen[y * width + x] = color;
+				}
+
+				previousTopOfWall = std::min(previousTopOfWall, backTopOfWall);
+
+				int l{ std::min(topOfWall, height) };
+				int q{ std::max(backTopOfWall, 0) };
+
+				if (variableHeight != 0)
+				{
+					for (int y{ l }; y > q; y--)
+					{
+						screen[y * width + x] = 0x00ff0000;
+					}
+				}
+
+				// If the height of the wall is the max height, then there is no need to continue finding 
+				// wall intersections because this wall obstructs them from view. If the top of the wall is less
+				// than 0, then the wall goes over the top of the screen. If the intersection point is outside the map,
+				// then the raycasting process is finished
+				if (iX < 0.0f || iX > gridSize * gridWidth || iY < 0.0f || iY > gridSize * gridHeight
+					|| variableHeight == gridSize || topOfWall < 0)
+				{
+					finished = true;
+				}
 			}
-
-			Texture* ceilingTexture{};
-
-			// Ceiling casting. Basically the same process as floorcasting, except from the top of the wall up
-			for (int y{ previousTopOfWall }; y > 0; y--)
-			{
-				// The straight, vertical line distance to the point on the ceiling
-				float straightDistance{ static_cast<float>((gridSize - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
-
-				// The corrected distance to the point on the ceiling (Reverse fish eye)
-				float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
-
-				// x and y components of a vector with a length of correctedDistance and angle of rayAngle
-				float dx{ correctedDistance * cosOfRayAngle };
-				float dy{ correctedDistance * -sinOfRayAngle };
-
-				// Calculate the location on the ceiling of the map of the current point
-				float pX{ playerX + dx };
-				float pY{ playerY + dy };
-
-				// Check if the point is outside of the map. Happens when the player's height is large
-				if (pX < 0.0f || pX >= gridWidth * gridSize || pY < 0.0f || pY >= gridHeight * gridSize)
-					continue;
-
-				// Calculate the pixel coordinates of the grid square point P is in
-				int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
-				int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
-
-				ceilingTexture = ceilingTextureLocations[(gridPY / gridSize) * gridWidth + (gridPX / gridSize)];
-
-				// Find the coordinates of point P within the grid square and normalize them
-				float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
-				float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
-
-				// Calculate the coordinates of point P in texture space
-				int textureX{ static_cast<int>(normX * ceilingTexture->m_width) };
-				int textureY{ static_cast<int>(normY * ceilingTexture->m_height) };
-
-				// Calculate the lighting at that point on the ceiling
-				float lighting{ -0.4f * correctedDistance + 255.0f };
-
-				if (lighting < 0.0f)
-					lighting = 0.0f;
-
-				// screen[y * width + x] = calculateLighting(ceilingTexture[textureY * ceilingTexture.m_width + textureX], lighting);
-				screen[y * width + x] = (*ceilingTexture)[textureY * ceilingTexture->m_width + textureX];
-			}
-
 		}
 		
 		for (int i{ 0 }; i < sprites.size(); i++)
@@ -1040,43 +1373,36 @@ int main(int argc, char* argv[])
 			// Draw direction the player is looking
 			SDL_RenderDrawLineF(renderTarget, normX, normY, normX + xSpeed * 1.0f, normY + ySpeed * 1.0f);
 
-			// Draw the horizontal intersecting rays
-			//SDL_SetRenderDrawColor(renderTarget, 255, 255, 255, 0);
-			//for (int i{ 0 }; i < aPoints.size(); i++)
-			//{
-			//	float normPointX{ aPoints[i].x / (gridSize * gridWidth) * height + width };
-			//	float normPointY{ aPoints[i].y / (gridSize * gridHeight) * height };
-			//	SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
-			//}
-
-			//// Draw the vertically intersection rays
-			//for (int i{ 0 }; i < bPoints.size(); i++)
-			//{
-			//	float normPointX{ bPoints[i].x / (gridSize * gridWidth) * height + width };
-			//	float normPointY{ bPoints[i].y / (gridSize * gridHeight) * height };
-			//	SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
-			//}
-
-			// Draw the rays which are used to render the scene
-			SDL_SetRenderDrawColor(renderTarget, 255, 0, 0, 0);
-			for (int i{ 0 }; i < actualPoints.size(); i++)
+			SDL_SetRenderDrawColor(renderTarget, 255, 0, 0, 255);
+			for (int i{ 0 }; i < aPoints.size(); i++)
 			{
-				float normPointX{ actualPoints[i].x / (gridSize * gridWidth) * height + width };
-				float normPointY{ actualPoints[i].y / (gridSize * gridHeight) * height };
-				SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
+				float normPointX{ aPoints[i].x / (gridSize * gridWidth) * height + width };
+				float normPointY{ aPoints[i].y / (gridSize * gridHeight) * height };
+
+				SDL_RenderDrawPoint(renderTarget, normPointX, normPointY);
 			}
 
-			// Draws the points from the map which are used for floor casting. Very slow!
-			/*SDL_SetRenderDrawColor(renderTarget, 255, 0, 0, 0);
-			for (int i{ 0 }; i < floorPoints.size(); i++)
-			{
-				float normPointX{ floorPoints[i].x / (gridSize * gridWidth) * height + width };
-				float normPointY{ floorPoints[i].y / (gridSize * gridHeight) * height };
-				SDL_RenderDrawLineF(renderTarget, normX, normY, normPointX, normPointY);
-			}*/
-
-			// Draw FOV
 			SDL_SetRenderDrawColor(renderTarget, 0, 255, 0, 255);
+			for (int i{ 0 }; i < bPoints.size(); i++)
+			{
+				float normPointX{ bPoints[i].x / (gridSize * gridWidth) * height + width };
+				float normPointY{ bPoints[i].y / (gridSize * gridHeight) * height };
+
+				SDL_RenderDrawPoint(renderTarget, normPointX, normPointY);
+			}
+
+			
+			SDL_SetRenderDrawColor(renderTarget, 0, 255, 128, 255);
+			for (int i{ 0 }; i < vPoints.size(); i++)
+			{
+				float normPointX{ vPoints[i].x / (gridSize * gridWidth) * height + width };
+				float normPointY{ vPoints[i].y / (gridSize * gridHeight) * height };
+
+				SDL_RenderDrawPoint(renderTarget, normPointX, normPointY);
+			}
+			
+			// Draw FOV
+			SDL_SetRenderDrawColor(renderTarget, 0, 0, 255, 255);
 			SDL_RenderDrawLineF(renderTarget, normX, normY, normX + (100 * cos(radians(theta - FOV / 2.0f))), normY - (100 * sin(radians(theta - FOV / 2.0f))));
 			SDL_RenderDrawLineF(renderTarget, normX, normY, normX + (100 * cos(radians(theta + FOV / 2.0f))), normY - (100 * sin(radians(theta + FOV / 2.0f))));
 		}
@@ -1087,8 +1413,15 @@ int main(int argc, char* argv[])
 
 		SDL_RenderPresent(renderTarget);
 
+		aPoints.clear();
+		bPoints.clear();
+		vPoints.clear();
+
+		sumOfFPS += FPS;
+		numFrames++;
 	}
 
+	std::cout << "Average FPS: " << (sumOfFPS / numFrames) << '\n';
 
 	SDL_DestroyWindow(win);				// Deallocates window memory + winSurface
 	SDL_DestroyRenderer(renderTarget);	// Deallocates the renderer
@@ -1103,3 +1436,61 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
+
+
+/*
+// Floor cast
+// y is a point on the projection plane from the bottom of the wall to the end of the screen
+int minBetweenHeightAndPreviousTopOfWall{ std::min(previousTopOfWall, height) };
+for (int y{ std::min(height, bottomOfWall) }; y < minBetweenHeightAndPreviousTopOfWall; y++)
+{
+	// The straight, vertical line distance to the point on the floor
+	float straightDistance{ static_cast<float>((playerHeight - previousWallHeight) * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
+
+	// The corrected distance to the point on the floor (reverse fisheye)
+	float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
+
+	// x and y components of a vector with a length of correctedDistance and angle of rayAngle
+	float dx{ correctedDistance * cosOfRayAngle };
+	float dy{ correctedDistance * -sinOfRayAngle };
+
+	// Calculate the location on the floor of the map of the current point
+	float pX{ playerX + dx };
+	float pY{ playerY + dy };
+
+	// Restrict the point to inside the map. The point goes outside when the player's height is very small
+	pX = clamp(pX, 0.0f, static_cast<float>(gridWidth * gridSize));
+	pY = clamp(pY, 0.0f, static_cast<float>(gridHeight * gridSize));
+
+	// Calculate the pixel coordinates of the grid square point P is in
+	int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
+	int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
+
+	Texture* floorTexture{};
+	if ((gridPX / gridSize + gridPY / gridSize) % 2 == 0)
+		floorTexture = floorTexture1;
+	else
+		floorTexture = floorTexture2;
+
+	// Find the coordinates of point P within the grid square and normalize them
+	float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
+	float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
+
+	// Calculate the coordinates of point P in texture space
+	int textureX{ static_cast<int>(normX * floorTexture->m_width) };
+	int textureY{ static_cast<int>(normY * floorTexture->m_height) };
+
+	int i{ textureY * floorTexture->m_width + textureX };
+	int g{ floorTexture->m_height * floorTexture->m_width };
+
+	uint32_t color{};
+
+	if (i < 0 || i > floorTexture->m_width * floorTexture->m_height)
+		color = 0x00FF0000;
+	else
+		color = (*floorTexture)[textureY * floorTexture->m_width + textureX];
+
+
+	screen[y * width + x] = color;
+}
+*/

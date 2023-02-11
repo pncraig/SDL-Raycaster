@@ -5,6 +5,8 @@
 
 Texture::Texture(const std::string& fileName, int pixelFormat)
 {
+	m_fileName = fileName;
+
 	SDL_Surface* textureSurface{ IMG_Load(fileName.c_str()) };
 	SDL_Surface* formattedSurface{ SDL_ConvertSurfaceFormat(textureSurface, pixelFormat, NULL) };
 
@@ -27,6 +29,8 @@ Texture::Texture(const std::string& fileName, int pixelFormat)
 
 Texture::Texture(const std::string& fileName, const SDL_Rect& section, int pixelFormat)
 {
+	m_fileName = fileName;
+
 	SDL_Surface* textureSurface{ IMG_Load(fileName.c_str()) };
 	SDL_Surface* formattedSurface{ SDL_ConvertSurfaceFormat(textureSurface, pixelFormat, NULL) };
 
@@ -69,7 +73,7 @@ uint32_t Texture::operator[](int i)
 		return m_pixels[i];
 	else
 	{
-		std::cout << "Out of bounds error: " << i << "\n";
+		std::cout << "Out of bounds error in " << m_fileName << ": " << i << "\n";
 		return 0xFFFF00FF;
 	}
 }
