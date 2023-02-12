@@ -31,9 +31,9 @@ const int gridHeight{ 20 };		// Height of the whole map in terms of grid blocks
 std::string gridMap{};	// String which stores the map
 std::vector<int> wallHeights(gridWidth * gridHeight);	// Stores the wall height in each grid spot
 
-Texture* wallTextureLocations[gridWidth * gridHeight];
-Texture* floorTextureLocations[gridWidth * gridHeight];
-Texture* ceilingTextureLocations[gridWidth * gridHeight];
+Texture* wallTextures[gridWidth * gridHeight];
+Texture* floorTextures[gridWidth * gridHeight];
+Texture* ceilingTextures[gridWidth * gridHeight];
 
 // Vector which holds all the sprites
 std::vector<Sprite> sprites{};
@@ -59,6 +59,10 @@ float previousTime{};
 float currentTime{};
 float deltaTime{};
 float FPS{};
+
+// Used to calculate average FPS
+float sumOfFPS{ 0.0f };
+int numFrames{ 0 };
 
 struct Point
 {
@@ -464,16 +468,22 @@ int main(int argc, char* argv[])
 	Texture right{ "sprite-sheet-non-transparent.png", {32, 64, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
 	Texture back{ "sprite-sheet-non-transparent.png", {32, 96, 32, 32}, SDL_PIXELFORMAT_RGBA8888 };
 
+	Texture rust{ "Textures.png", {128 * 31, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture lightwood{ "Textures.png", {128 * 32, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture brick{ "Textures.png", {128 * 46, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture shale{ "Textures.png", {128 * 16, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture sand{ "Textures.png", {128 * 14, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture dirt{ "Textures.png", {128 * 8, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture darkbrick{ "Textures.png", {128 * 20, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture lightbrick{ "Textures.png", {128 * 18, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture darkstone{ "Textures.png", {128 * 17, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture shinymetal{ "Textures.png", {128 * 24, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture darksand{ "Textures.png", {128 * 12, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture rustedbrick{ "Textures.png", {128 * 21, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+	Texture chippedstone{ "Textures.png", {128 * 22, 0, 128, 128}, SDL_PIXELFORMAT_RGBA8888 };
+
 	Texture spriteTexture{ "greenlight.png", SDL_PIXELFORMAT_RGBA8888 };
 	Texture spriteTexture2{ "pillar.png", SDL_PIXELFORMAT_RGBA8888 };
-
-	Texture* wallTexture{ &colorstone };
-	Texture* floorTexture1{ &greystone };
-	Texture* floorTexture2{ &bluestone };
-	Texture* ceilingTexture{ &wood };
-
-	float sumOfFPS{ 0.0f };
-	int numFrames{ 0 };
 
 	// Add sprites to the sprite array
 	/*sprites.push_back(Sprite{ &spriteTexture, gridSize * 5.5f, gridSize * 17.5f });
@@ -492,19 +502,52 @@ int main(int argc, char* argv[])
 		64, 0,	0,	64,	0,	64,	0,	0,	0,	16, 64, 0,	0,	64,	0,	25,	0,	0,	0,	64,
 		64, 0,	0,	0,	0,	64,	0,	0,	0,	16, 16, 0,	0,	0,	0,	20,	0,	0,	0,	64,
 		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	15,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 0,	0,	0,	0,	10,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	 0,  0, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
-		64, 0,  32, 16,	0,	0,	0,	0,	0,	64, 64, 0,  64, 64,	0,	0,	0,	0,	0,	64,
-		64, 0,  48,	32,	0,	0,	0,	0,	0,	64, 64, 0,  64,	64,	0,	0,	0,	0,	0,	64,
-		64, 0,	0,	0,	0,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	64,	0,	0,	0,	64, 64, 48,	32,	16,	0,	10,	0,	0,	0,	64,
+		64, 0,	64,	0,	0,	0,	0,	0,	0,	 0,  0, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	54,	0,	0,	0,	0,	0,	64, 64, 48,	32,	16,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	44,	0,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	34,	0,	0,	0,	64, 64, 0,	0,	0,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	24,	0,	0,	64, 64, 0,	0,	0,	0,	32,	16,	32,	0,	64,
+		64, 0,	0,	0,	0,	32,	32,	32,	0,	64, 64, 0,	0,	0,	0,	48,	32,	48,	0,	64,
+		64, 0,	0,	0,	0,	32,	0,	32,	0,	64, 64, 0,	0,	0,	0,	48,	0,	48,	0,	64,
+		64, 0,  32, 16,	0,	32,	32,	32,	0,	64, 64, 10, 64, 64,	0,	64,	64,	64,	0,	64,
+		64, 0,  48,	32,	0,	0,	0,	0,	0,	0 , 10, 20, 64,	64,	0,	0,	0,	0,	0,	64,
+		64, 0,	0,	0,	0,	0,	0,	0,	0,	0 , 10, 20,	10,	0,	0,	0,	0,	0,	0,	64,
 		64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,
 	};
+
+	for (int y{ 0 }; y < gridHeight; y++)
+	{
+		for (int x{ 0 }; x < gridWidth; x++)
+		{
+			int location{ y * gridWidth + x };
+			
+			if (x < gridWidth / 2 && y < gridHeight / 2)
+			{
+				wallTextures[location] = &brick;
+				floorTextures[location] = &darkbrick;
+				ceilingTextures[location] = &lightwood;
+			}
+			else if (x > gridWidth / 2 && y < gridHeight / 2)
+			{
+				wallTextures[location] = &rustedbrick;
+				floorTextures[location] = &chippedstone;
+				ceilingTextures[location] = &darkstone;
+			}
+			else if (x < gridWidth / 2 && y > gridHeight / 2)
+			{
+				wallTextures[location] = &lightbrick;
+				floorTextures[location] = &darksand;
+				ceilingTextures[location] = &chippedstone;
+			}
+			else
+			{
+				wallTextures[location] = &darkbrick;
+				floorTextures[location] = &shinymetal;
+				ceilingTextures[location] = &greystone;
+			}
+		}
+	}
 
 	// Create a string map
 	for (int y{ 0 }; y < gridHeight; y++)
@@ -590,6 +633,12 @@ int main(int argc, char* argv[])
 		// Color every pixel in the screen array black
 		for (int i{ 0 }; i < width * height; i++)
 			screen[i] = 0xFF000000;
+
+		for (int y{ 1 }; y <= 8; y++)
+		{
+			float h{ 32.0f * sinf(radians(0.01f * y * sumOfFPS)) + 32.0f };
+			wallHeights[y * gridWidth + 5] = static_cast<int>(h);
+		}
 
 		// Movement + collision
 		
@@ -809,7 +858,7 @@ int main(int argc, char* argv[])
 			// on the screen is represented
 			float floorStepX{ vX / width };
 			float floorStepY{ vY / width };
-
+			
 			// A for loop that goes accross the horizontal line
 			for (int x{ width - 1 }; x >= 0; x--)
 			{
@@ -819,7 +868,13 @@ int main(int argc, char* argv[])
 				// Calculate the coordinates of the grid square the point on the ceiling is in
 				int gridX{ static_cast<int>(aX / gridSize) * gridSize };
 				int gridY{ static_cast<int>(aY / gridSize) * gridSize };
+				
+				Texture* ceilingTexture{};
 
+				if ((gridX / gridSize) < gridWidth && (gridX / gridSize) >= 0 && (gridY / gridSize) < gridHeight && (gridY / gridSize) >= 0)
+					ceilingTexture = ceilingTextures[(gridY / gridSize) * gridWidth + (gridX / gridSize)];
+				else
+					ceilingTexture = ceilingTextures[0];
 				/*
 				float num{ gridX * gridY / static_cast<float>(width * height) };
 				unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
@@ -1118,8 +1173,11 @@ int main(int argc, char* argv[])
 			int playerBottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / playerRenderingDistance) };
 			int playerTopOfWall{ playerBottomOfWall - playerWallHeight };
 
+			Texture* playerWallTexture{ wallTextures[playerGridY * gridWidth + playerGridX] };
+			Texture* playerFloorTexture{ floorTextures[playerGridY * gridWidth + playerGridX] };
+
 			// Calculate the texture column for the wall slice
-			int playerTextureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
+			int playerTextureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * playerWallTexture->m_width) };
 
 			int minBetweenHeightAndPlayerBottomOfWall{ std::min(height, playerBottomOfWall) };
 
@@ -1127,10 +1185,10 @@ int main(int argc, char* argv[])
 			for (int y{ std::max(playerTopOfWall, 0) }; y < minBetweenHeightAndPlayerBottomOfWall; y++)
 			{
 				// The row on the texture
-				int textureSpaceRow{ static_cast<int>((y - playerTopOfWall) / static_cast<float>(playerWallHeight) * wallTexture->m_height) };
+				int textureSpaceRow{ static_cast<int>((y - playerTopOfWall) / static_cast<float>(playerWallHeight) * playerWallTexture->m_height) };
 
 				// Get the color of the texture at the point on the wall (x, y)
-				uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + playerTextureSpaceColumn] };
+				uint32_t color{ (*playerWallTexture)[textureSpaceRow * playerWallTexture->m_width + playerTextureSpaceColumn] };
 
 				screen[y * width + x] = calculateLighting(color, light);
 				// screen[y * width + x] = color;
@@ -1162,14 +1220,14 @@ int main(int argc, char* argv[])
 					float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
 					float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
 
-					int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
-					int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+					int textureX{ static_cast<int>(normX * playerFloorTexture->m_width) };
+					int textureY{ static_cast<int>(normY * playerFloorTexture->m_height) };
 
-					int i{ textureY * floorTexture1->m_width + textureX };
+					int i{ textureY * playerFloorTexture->m_width + textureX };
 					uint32_t color{};
 
-					if (i < floorTexture1->m_width * floorTexture1->m_height)
-						color = (*floorTexture1)[i];
+					if (i < playerFloorTexture->m_width * playerFloorTexture->m_height)
+						color = (*playerFloorTexture)[i];
 					else
 						color = 0x00FFFF00;
 
@@ -1178,11 +1236,10 @@ int main(int argc, char* argv[])
 			}
 			else
 			{
-				/*
 				for (int y{ playerTopOfWall }; y >= 0; y--)
 				{
 					// Get the distance from the screen pixel to the point on the floor that it contains
-					float floorDistance{ static_cast<float>(((gridSize - heightBeneathPlayer) - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
+					float floorDistance{ static_cast<float>((heightBeneathPlayer - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
 
 					// Correct for the fish eye effect
 					floorDistance /= cosf(radians(theta - rayAngle));
@@ -1203,20 +1260,58 @@ int main(int argc, char* argv[])
 					float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
 					float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
 
-					int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
-					int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+					int textureX{ static_cast<int>(normX * playerFloorTexture->m_width) };
+					int textureY{ static_cast<int>(normY * playerFloorTexture->m_height) };
 
-					int i{ textureY * floorTexture1->m_width + textureX };
+					int i{ textureY * playerFloorTexture->m_width + textureX };
 					uint32_t color{};
 
-					if (i < floorTexture1->m_width * floorTexture1->m_height)
-						color = (*floorTexture1)[i];
+					if (i < playerFloorTexture->m_width * playerFloorTexture->m_height)
+						color = (*playerFloorTexture)[i];
 					else
 						color = 0x00FFFF00;
 
 					screen[y * width + x] = color;
 				}
-				*/
+
+				for (int y{ playerBottomOfWall }; y < height; y++)
+				{
+					// Get the distance from the screen pixel to the point on the floor that it contains
+					float floorDistance{ static_cast<float>(playerHeight * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
+
+					// Correct for the fish eye effect
+					floorDistance /= cosf(radians(theta - rayAngle));
+
+					// Calculate the point on the floor that contains the color of the pixel on the screen
+					float floorX{ playerX + floorDistance * cosf(radians(rayAngle)) };
+					float floorY{ playerY + floorDistance * -sinf(radians(rayAngle)) };
+
+					// Keep the point within the bounds of the map to avoid accessing the floor texture in an improper way
+					floorX = clamp(floorX, 0.0f, gridWidth * gridSize);
+					floorY = clamp(floorY, 0.0f, gridWidth * gridSize);
+
+					// Calculate the grid square the floor is in
+					int floorGridX{ static_cast<int>(floorX / gridSize) * gridSize };
+					int floorGridY{ static_cast<int>(floorY / gridSize) * gridSize };
+
+					// Calculate the texture coordinates that correspond to the point on the floor
+					float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
+					float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
+
+					int textureX{ static_cast<int>(normX * playerFloorTexture->m_width) };
+					int textureY{ static_cast<int>(normY * playerFloorTexture->m_height) };
+
+					int i{ textureY * playerFloorTexture->m_width + textureX };
+					uint32_t color{};
+
+					if (i < playerFloorTexture->m_width * playerFloorTexture->m_height)
+						color = (*playerFloorTexture)[i];
+					else
+						color = 0x00FFFF00;
+
+					screen[y * width + x] = color;
+				}
+
 				finished = true;
 			}
 
@@ -1229,6 +1324,9 @@ int main(int argc, char* argv[])
 				// Calculate which grid square the intersection belongs to
 				int intersectionGridX{ static_cast<int>(iX / gridSize) };
 				int intersectionGridY{ static_cast<int>(iY / gridSize) };
+
+				Texture* wallTexture{ wallTextures[intersectionGridY * gridWidth + intersectionGridX] };
+				Texture* floorTexture{ floorTextures[intersectionGridY * gridWidth + intersectionGridX] };
 
 				float num{ intersectionGridX * intersectionGridY / static_cast<float>(gridWidth * gridHeight) };
 				// unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
@@ -1412,14 +1510,14 @@ int main(int argc, char* argv[])
 						float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
 						float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
 
-						int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
-						int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+						int textureX{ static_cast<int>(normX * floorTexture->m_width) };
+						int textureY{ static_cast<int>(normY * floorTexture->m_height) };
 
-						int i{ textureY * floorTexture1->m_width + textureX };
+						int i{ textureY * floorTexture->m_width + textureX };
 						uint32_t color{};
 
-						if (i < floorTexture1->m_width * floorTexture1->m_height)
-							color = (*floorTexture1)[i];
+						if (i < floorTexture->m_width * floorTexture->m_height)
+							color = (*floorTexture)[i];
 						else
 							color = 0x00FFFF00;
 
