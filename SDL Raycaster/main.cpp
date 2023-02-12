@@ -690,7 +690,7 @@ int main(int argc, char* argv[])
 		float sinOfThetaPlusHalfFOV{ sin(radians(theta + FOV * 0.5f)) };
 
 		float cosOfHalfFOV{ cos(radians(FOV * 0.5f)) };
-		
+		/*
 		// Draw Floor
 		// Loop over every horizontal line from the center of the projection plane down. Exclude the line at the center because
 		// it would cause a divide by 0 error
@@ -744,7 +744,7 @@ int main(int argc, char* argv[])
 				/*float num{ gridX * gridY / static_cast<float>(width * height) };
 				unsigned int color{ static_cast<unsigned int>(0xffffffff * num) };
 				screen[y * width + x] = color;
-				*/
+				
 
 				if ((gridX / gridSize + gridY / gridSize) % 2 == 0)
 					floorTexture = floorTexture1;
@@ -770,7 +770,8 @@ int main(int argc, char* argv[])
 				aY += floorStepY;
 			}
 		}
-		
+		*/
+
 		// Draw Ceiling
 		// Loop over every horizontal line from the center of the projection plane down. Exclude the line at the center because
 		// it would cause a divide by 0 error
@@ -864,6 +865,8 @@ int main(int argc, char* argv[])
 			int previousTopOfWall{ height };	// Saves the position of the top of the previous wall on the projection plane to draw the floor on top of that wall
 			int previousWallHeight{ currentHeight };		// Saves the height of the previous wall to calculate where the next wall begins on the projection plane
 
+			bool finished{ false };
+
 			float light{ 255.0f };
 
 			// Distance from the player to the current intersection with the grid (this version of the raycasters checks every intersection 
@@ -929,7 +932,7 @@ int main(int argc, char* argv[])
 				aX = playerX - (aY - playerY) / tanOfRayAngle;
 
 				// Make part of the grid below for ease of checking for a wall
-				aY--;
+				aY -= 0.001f;
 			}
 			// If ray is facing down... (or upwards on the coordinate grid)
 			else
@@ -1020,7 +1023,7 @@ int main(int argc, char* argv[])
 				// Calculate the y-coordinate of the first intersection with a vertical gridline
 				bY = playerY + (playerX - bX) * tanOfRayAngle;
 
-				bX--;
+				bX -= 0.001f;
 			}
 
 			// Determine which initial point (point A or point B) is closer to the player
@@ -1094,7 +1097,133 @@ int main(int argc, char* argv[])
 				}
 			}
 
-			bool finished{ false };
+			// The next 30 lines of code draw the walls of the grid the player is standing in; without these lines of code,
+			// when the player stepped into a square with a wall in it, the walls would disappear
+			
+			// Determine the grid square the player is standing in
+			int playerGridX{ static_cast<int>(playerX / gridSize) };
+			int playerGridY{ static_cast<int>(playerY / gridSize) };
+
+			// Determine the height of the floor beneath the player
+			int heightBeneathPlayer{ wallHeights[playerGridY * gridWidth + playerGridX] };
+
+			// Calculate the fisheye corrected distance used for rendering. All the variables below are prefaced by player
+			// to distinguish them from the variables in the main rendering loop, not because they represent an attribute of the player
+			float playerRenderingDistance{ distance * cosf(radians(theta - rayAngle)) };
+
+			// Calculate the wall height in the player's grid square
+			int playerWallHeight{ static_cast<int>((distanceToProjectionPlane / playerRenderingDistance) * heightBeneathPlayer) + 1 };
+
+			// Calculate the top and the bottom of the wall
+			int playerBottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / playerRenderingDistance) };
+			int playerTopOfWall{ playerBottomOfWall - playerWallHeight };
+
+			// Calculate the texture column for the wall slice
+			int playerTextureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
+
+			int minBetweenHeightAndPlayerBottomOfWall{ std::min(height, playerBottomOfWall) };
+
+			// Draw the wall sliver
+			for (int y{ std::max(playerTopOfWall, 0) }; y < minBetweenHeightAndPlayerBottomOfWall; y++)
+			{
+				// The row on the texture
+				int textureSpaceRow{ static_cast<int>((y - playerTopOfWall) / static_cast<float>(playerWallHeight) * wallTexture->m_height) };
+
+				// Get the color of the texture at the point on the wall (x, y)
+				uint32_t color{ (*wallTexture)[textureSpaceRow * wallTexture->m_width + playerTextureSpaceColumn] };
+
+				screen[y * width + x] = calculateLighting(color, light);
+				// screen[y * width + x] = color;
+			}
+
+			if (playerHeight > heightBeneathPlayer)
+			{
+				for (int y{ height - 1 }; y >= playerTopOfWall; y--)
+				{
+					// Get the distance from the screen pixel to the point on the floor that it contains
+					float floorDistance{ static_cast<float>((playerHeight - heightBeneathPlayer) * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
+
+					// Correct for the fish eye effect
+					floorDistance /= cosf(radians(theta - rayAngle));
+
+					// Calculate the point on the floor that contains the color of the pixel on the screen
+					float floorX{ playerX + floorDistance * cosf(radians(rayAngle)) };
+					float floorY{ playerY + floorDistance * -sinf(radians(rayAngle)) };
+
+					// Keep the point within the bounds of the map to avoid accessing the floor texture in an improper way
+					floorX = clamp(floorX, 0.0f, gridWidth * gridSize);
+					floorY = clamp(floorY, 0.0f, gridWidth * gridSize);
+
+					// Calculate the grid square the floor is in
+					int floorGridX{ static_cast<int>(floorX / gridSize) * gridSize };
+					int floorGridY{ static_cast<int>(floorY / gridSize) * gridSize };
+
+					// Calculate the texture coordinates that correspond to the point on the floor
+					float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
+					float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
+
+					int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
+					int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+
+					int i{ textureY * floorTexture1->m_width + textureX };
+					uint32_t color{};
+
+					if (i < floorTexture1->m_width * floorTexture1->m_height)
+						color = (*floorTexture1)[i];
+					else
+						color = 0x00FFFF00;
+
+					screen[y * width + x] = color;
+				}
+			}
+			else
+			{
+				/*
+				for (int y{ playerTopOfWall }; y >= 0; y--)
+				{
+					// Get the distance from the screen pixel to the point on the floor that it contains
+					float floorDistance{ static_cast<float>(((gridSize - heightBeneathPlayer) - playerHeight) * distanceToProjectionPlane) / (projectionPlaneCenter - y) };
+
+					// Correct for the fish eye effect
+					floorDistance /= cosf(radians(theta - rayAngle));
+
+					// Calculate the point on the floor that contains the color of the pixel on the screen
+					float floorX{ playerX + floorDistance * cosf(radians(rayAngle)) };
+					float floorY{ playerY + floorDistance * -sinf(radians(rayAngle)) };
+
+					// Keep the point within the bounds of the map to avoid accessing the floor texture in an improper way
+					floorX = clamp(floorX, 0.0f, gridWidth * gridSize);
+					floorY = clamp(floorY, 0.0f, gridWidth * gridSize);
+
+					// Calculate the grid square the floor is in
+					int floorGridX{ static_cast<int>(floorX / gridSize) * gridSize };
+					int floorGridY{ static_cast<int>(floorY / gridSize) * gridSize };
+
+					// Calculate the texture coordinates that correspond to the point on the floor
+					float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
+					float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
+
+					int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
+					int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+
+					int i{ textureY * floorTexture1->m_width + textureX };
+					uint32_t color{};
+
+					if (i < floorTexture1->m_width * floorTexture1->m_height)
+						color = (*floorTexture1)[i];
+					else
+						color = 0x00FFFF00;
+
+					screen[y * width + x] = color;
+				}
+				*/
+				finished = true;
+			}
+
+			// Update previousTopOfWall
+			previousTopOfWall = playerTopOfWall;
+
+			// Find all intersections between the ray and the grid, and render the wall of the given height
 			while (!finished)
 			{
 				// Calculate which grid square the intersection belongs to
@@ -1115,8 +1244,10 @@ int main(int argc, char* argv[])
 				// to the sprite
 				// zBuffer[x] = distance;
 
+				// The code up until the update of previousTopOfWall renders the front faces of the walls
+				
 				// Calculate the height of the wall
-				int wallHeight{ static_cast<int>((distanceToProjectionPlane / renderingDistance) * variableHeight) + 1 };
+				int wallHeight{ static_cast<int>((distanceToProjectionPlane / renderingDistance) * variableHeight) + 1};
 
 				// Y-coordinates of the bottom and top of the wall. Calculated in terms of player height and projection plane center (using similar
 				// triangles) so that when the player height changes, the location of the wall will as well
@@ -1149,8 +1280,12 @@ int main(int argc, char* argv[])
 				// Update previousWallHeight now that its purpose has been fulfilled
 				previousWallHeight = variableHeight;
 
+				// Update previousTopOfWall, but only if the current wall is larger than the previous (a larger wall will have 
+				// a smaller topOfWall variable value)
 				previousTopOfWall = std::min(previousTopOfWall, topOfWall);
-				
+
+				// The code until backRenderingDistance is instantiated updates the grid intersection
+
 				// Determine which initial point (point A or point B) is closer to the player
 				horizontalDistance = (playerX - (aX + adX)) * (playerX - (aX + adX)) + (playerY - (aY + adY)) * (playerY - (aY + adY));
 				verticalDistance = (playerX - (bX + bdX)) * (playerX - (bX + bdX)) + (playerY - (bY + bdY)) * (playerY - (bY + bdY));
@@ -1206,9 +1341,13 @@ int main(int argc, char* argv[])
 					}
 				}
 
+				// Code up until after the for loop projects and renders the back faces of the wall. This process uses the same
+				// methods as rendering the front faces, but it is done with the updated intersection and distance information.
+				// However, instead of using the next grid square, it uses the same grid square that was used to render the front faces.
+
 				float backRenderingDistance{ distance * cos(radians(theta - rayAngle)) };
 
-				int backWallHeight{ static_cast<int>((distanceToProjectionPlane / backRenderingDistance) * variableHeight) + 1 };
+				int backWallHeight{ static_cast<int>((distanceToProjectionPlane / backRenderingDistance) * variableHeight) };
 
 				int backBottomOfWall{ static_cast<int>(projectionPlaneCenter + (distanceToProjectionPlane * playerHeight) / backRenderingDistance) };
 				int backTopOfWall{ backBottomOfWall - backWallHeight };
@@ -1216,11 +1355,13 @@ int main(int argc, char* argv[])
 				if (backBottomOfWall > previousTopOfWall)
 					backBottomOfWall = previousTopOfWall;
 
+				// It is not necessary to render the back faces when the floors are being rendered
+				/*
 				// The column on the texture which corresponds to the position of the ray intersection with the wall
 				int backTextureSpaceColumn{ static_cast<int>(static_cast<float>(gridSpaceColumn) / gridSize * wallTexture->m_width) };
 
 				int minBetweenHeightAndBackBottomOfWall{ std::min(height, backBottomOfWall) };
-
+				
 				// Draw the wall sliver
 				for (int y{ std::max(backTopOfWall, 0) }; y < minBetweenHeightAndBackBottomOfWall; y++)
 				{
@@ -1233,19 +1374,60 @@ int main(int argc, char* argv[])
 					screen[y * width + x] = calculateLighting(color, light);
 					// screen[y * width + x] = color;
 				}
+				*/
 
-				previousTopOfWall = std::min(previousTopOfWall, backTopOfWall);
+				// Clip the values of topOfWall and backTopOfWall to the screen
+				int minBetweenFrontTopOfWallAndHeight{ std::min(topOfWall, height - 1) };
+				int maxBetweenBackTopOfWallAnd0{ std::max(backTopOfWall, 0) };
 
-				int l{ std::min(topOfWall, height) };
-				int q{ std::max(backTopOfWall, 0) };
+				// If the y-value at which the floor rendering starts is greater than the previous top of wall, then
+				// that floor is obstructed and the y-value at which the floor rendering starts much be changed so
+				// that it now starts at the top of the previous wall
+				if (minBetweenFrontTopOfWallAndHeight > previousTopOfWall)
+					minBetweenFrontTopOfWallAndHeight = previousTopOfWall;
 
-				if (variableHeight != 0)
+				if (variableHeight != gridSize)
 				{
-					for (int y{ l }; y > q; y--)
+					for (int y{ minBetweenFrontTopOfWallAndHeight}; y >= maxBetweenBackTopOfWallAnd0; y--)
 					{
-						screen[y * width + x] = 0x00ff0000;
+						// Get the distance from the screen pixel to the point on the floor that it contains
+						float floorDistance{ static_cast<float>((playerHeight - variableHeight) * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
+
+						// Correct for the fish eye effect
+						floorDistance /= cosf(radians(theta - rayAngle));
+						
+						// Calculate the point on the floor that contains the color of the pixel on the screen
+						float floorX{ playerX + floorDistance * cosf(radians(rayAngle)) };
+						float floorY{ playerY + floorDistance * -sinf(radians(rayAngle)) };
+
+						// Keep the point within the bounds of the map to avoid accessing the floor texture in an improper way
+						floorX = clamp(floorX, 0.0f, gridWidth * gridSize);
+						floorY = clamp(floorY, 0.0f, gridWidth * gridSize);
+
+						// Calculate the grid square the floor is in
+						int floorGridX{ static_cast<int>(floorX / gridSize) * gridSize };
+						int floorGridY{ static_cast<int>(floorY / gridSize) * gridSize };
+
+						// Calculate the texture coordinates that correspond to the point on the floor
+						float normX{ (static_cast<int>(floorX) - floorGridX) / static_cast<float>(gridSize) };
+						float normY{ (static_cast<int>(floorY) - floorGridY) / static_cast<float>(gridSize) };
+
+						int textureX{ static_cast<int>(normX * floorTexture1->m_width) };
+						int textureY{ static_cast<int>(normY * floorTexture1->m_height) };
+
+						int i{ textureY * floorTexture1->m_width + textureX };
+						uint32_t color{};
+
+						if (i < floorTexture1->m_width * floorTexture1->m_height)
+							color = (*floorTexture1)[i];
+						else
+							color = 0x00FFFF00;
+
+						screen[y * width + x] = color;
 					}
 				}
+
+				previousTopOfWall = std::min(previousTopOfWall, backTopOfWall);
 
 				// If the height of the wall is the max height, then there is no need to continue finding 
 				// wall intersections because this wall obstructs them from view. If the top of the wall is less
@@ -1436,61 +1618,3 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
-
-
-/*
-// Floor cast
-// y is a point on the projection plane from the bottom of the wall to the end of the screen
-int minBetweenHeightAndPreviousTopOfWall{ std::min(previousTopOfWall, height) };
-for (int y{ std::min(height, bottomOfWall) }; y < minBetweenHeightAndPreviousTopOfWall; y++)
-{
-	// The straight, vertical line distance to the point on the floor
-	float straightDistance{ static_cast<float>((playerHeight - previousWallHeight) * distanceToProjectionPlane) / (y - projectionPlaneCenter) };
-
-	// The corrected distance to the point on the floor (reverse fisheye)
-	float correctedDistance{ straightDistance / cosOfThetaMinusRayAngle };
-
-	// x and y components of a vector with a length of correctedDistance and angle of rayAngle
-	float dx{ correctedDistance * cosOfRayAngle };
-	float dy{ correctedDistance * -sinOfRayAngle };
-
-	// Calculate the location on the floor of the map of the current point
-	float pX{ playerX + dx };
-	float pY{ playerY + dy };
-
-	// Restrict the point to inside the map. The point goes outside when the player's height is very small
-	pX = clamp(pX, 0.0f, static_cast<float>(gridWidth * gridSize));
-	pY = clamp(pY, 0.0f, static_cast<float>(gridHeight * gridSize));
-
-	// Calculate the pixel coordinates of the grid square point P is in
-	int gridPX{ static_cast<int>(pX / gridSize) * gridSize };
-	int gridPY{ static_cast<int>(pY / gridSize) * gridSize };
-
-	Texture* floorTexture{};
-	if ((gridPX / gridSize + gridPY / gridSize) % 2 == 0)
-		floorTexture = floorTexture1;
-	else
-		floorTexture = floorTexture2;
-
-	// Find the coordinates of point P within the grid square and normalize them
-	float normX{ (static_cast<int>(pX) - gridPX) / static_cast<float>(gridSize) };
-	float normY{ (static_cast<int>(pY) - gridPY) / static_cast<float>(gridSize) };
-
-	// Calculate the coordinates of point P in texture space
-	int textureX{ static_cast<int>(normX * floorTexture->m_width) };
-	int textureY{ static_cast<int>(normY * floorTexture->m_height) };
-
-	int i{ textureY * floorTexture->m_width + textureX };
-	int g{ floorTexture->m_height * floorTexture->m_width };
-
-	uint32_t color{};
-
-	if (i < 0 || i > floorTexture->m_width * floorTexture->m_height)
-		color = 0x00FF0000;
-	else
-		color = (*floorTexture)[textureY * floorTexture->m_width + textureX];
-
-
-	screen[y * width + x] = color;
-}
-*/
