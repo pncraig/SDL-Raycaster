@@ -4,25 +4,26 @@
 #include "Texture.h"
 #include "SDL.h"
 #include <vector>
+#include "Utility.h"
 
 class Sprite
 {
 private:
 	std::vector<Texture*> m_textures;
 
-	int m_angleBetween;
+	int m_angleBetween{};
 public:
-	float x{};
-	float y{};
-	float theta{};				// Sprite angle
-	float noSqrtDistance{};		// Stores the distance calculated without the sqrt, so only useful for sorting
+	double x{};
+	double y{};
+	double theta{};				// Sprite angle
+	double noSqrtDistance{};		// Stores the distance calculated without the sqrt, so only useful for sorting
 
 	Sprite() {}
-	Sprite(Texture* texture, float s_x, float s_y);
-	Sprite(const std::vector<Texture*>& textures, float s_x, float s_y, float s_a);
+	Sprite(Texture* texture, double s_x, double s_y);
+	Sprite(const std::vector<Texture*>& textures, double s_x, double s_y, double s_a);
 
-	Texture* facingTexture(float a);
-	float angleToSprite(float x, float y);
+	Texture* facingTexture(double a);
+	double angleToSprite(double x, double y);
 };
 
 #endif

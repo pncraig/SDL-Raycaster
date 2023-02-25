@@ -1,7 +1,4 @@
 #include "Texture.h"
-#include "SDL.h"
-#include "SDL_image.h"
-#include <iostream>
 
 Texture::Texture(const std::string& fileName, int pixelFormat)
 {
@@ -62,9 +59,34 @@ Texture::Texture(const std::string& fileName, const SDL_Rect& section, int pixel
 	SDL_FreeSurface(formattedSurface);
 }
 
-Texture::~Texture()
+Texture::Texture(const Texture& t)
 {
-	delete[] m_pixels;
+	m_fileName = t.m_fileName;
+	m_width = t.m_width;
+	m_height = t.m_height;
+	
+	m_pixels = new uint32_t[m_width * m_height];
+
+	for (int i{ 0 }; i < m_width * m_height; i++)
+	{
+		m_pixels[i] = t.m_pixels[i];
+	}
+}
+
+Texture& Texture::operator=(const Texture& t)
+{
+	if (this == &t)
+		return *this;
+
+	m_fileName = t.m_fileName;
+	m_width = t.m_width;
+	m_height = t.m_height;
+
+	m_pixels = new uint32_t[m_width * m_height];
+	for (int i{ 0 }; i < m_width * m_height; i++)
+		m_pixels[i] = t.m_pixels[i];
+
+	return *this;
 }
 
 uint32_t Texture::operator[](int i)
@@ -76,4 +98,27 @@ uint32_t Texture::operator[](int i)
 		std::cout << "Out of bounds error in " << m_fileName << ": " << i << "\n";
 		return 0xFFFF00FF;
 	}
+}
+
+uint32_t Texture::getTexel(int x, int y)
+{
+	if (x >= 0 && x < m_width && y >= 0 && y < m_height)
+		return m_pixels[y * m_width + x];
+	else
+	{
+		// std::cout << "Out of bounds error in " << m_fileName << " at (" << x << ", " << y << ")\n";
+		return 0xFFFF00FF;
+	}
+}
+
+uint32_t Texture::getTexel(float normX, float normY)
+{
+	int x{ static_cast<int>(normX * m_width) };
+	int y{ static_cast<int>(normY * m_height) };
+	return getTexel(x, y);
+}
+
+Texture::~Texture()
+{
+	delete[] m_pixels;
 }
