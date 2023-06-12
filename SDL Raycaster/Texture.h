@@ -13,7 +13,7 @@ private:
 	int m_width{};
 	int m_height{};
 	std::string m_fileName;
-
+	static bool bilinearFiltering;
 public:
 	Texture(const std::string& fileName, int pixelFormat);
 	Texture(const std::string& fileName, const SDL_Rect& section, int pixelFormat);
@@ -28,7 +28,9 @@ public:
 
 	uint32_t operator[](int i);
 	uint32_t getTexel(int x, int y);				// Access a texel using coordinates in a plane with a width of m_width and height of m_height
-	uint32_t getTexel(float normX, float normY);	// Access a texel using normalized coordinates
+	uint32_t getTexel(double normX, double normY);	// Access a texel using normalized coordinates
+
+	static void turnBilinearFilteringOn() { bilinearFiltering = true; }
 
 	~Texture();
 };

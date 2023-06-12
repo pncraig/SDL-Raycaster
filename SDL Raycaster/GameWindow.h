@@ -4,6 +4,8 @@
 #include "Sprites.h"
 #include "Texture.h"
 #include "Utility.h"
+#include "Player.h"
+#include <string>
 
 #include "SDL.h"
 #include "SDL_image.h"
@@ -13,63 +15,65 @@
 class GameWindow
 {
 private:
-	const int width{};		// Width of the screen in pixels
-	const int height{};		// Height of the screen in pixels
+	const int WIDTH{};		// Width of the screen in pixels
+	const int HEIGHT{};		// Height of the screen in pixels
 
-	const int cellSize{};		// Dimensions of one of the grid squares, or cells, on the map
-	const int maxWallHeight{};	// The maximum possible size of a wall
-	int* wallHeights{};			// An array that contains the heights of each cell on the map
+	const int CELL_SIZE{};			// Dimensions of one of the grid squares, or cells, on the map
+	const int MAX_WALL_HEIGHT{};	// The maximum possible size of a wall
+	int* WALL_HEIGHTS{};			// An array that contains the heights of each cell on the map
 
-	const int mapWidth{};		// The width of the map in cells
-	const int mapHeight{};		// The height of the map in cells
+	const int MAP_WIDTH{};		// The width of the map in cells
+	const int MAP_HEIGHT{};		// The height of the map in cells
 
-	const bool infiniteFloor{};	// Should the floor and ceiling be drawn to the horizon or should just the parts of the floor on the map be drawn?
+	const bool INFINITE_FLOOR{};	// Should the floor and ceiling be drawn to the horizon or should just the parts of the floor on the map be drawn?
 
-	Texture floorTexture;		// Textures for the floor
-	Texture wallTexture;		// Textures for the walls
-	Texture ceilingTexture;		// Textures for the ceiling
+	Texture FLOOR_TEXTURE;		// Textures for the floor
+	Texture WALL_TEXTURE;		// Textures for the walls
+	Texture CEILING_TEXTURE;		// Textures for the ceiling
 
-	int projectionPlaneCenter{};				// The center of the projection plane, which basically means the center of the screen
-	double floatProjectionPlaneCenter{};		// The center of the projection plane as a float so that the projection plane can move up and down based on fractional values
-	int distanceToProjectionPlane{};			// The distance from the player's eyes to the projection plane, useful because it allows us to use similar triangles to calculate wall heights
-	double adjustedDistanceToProjectionPlane{};	// The "adjusted" distance to the projection plane, used so that I can adjust the field of view
+	int PROJECTION_PLANE_CENTER{};				// The center of the projection plane, which basically means the center of the screen
+	double FLOAT_PROJECTION_PLANE_CENTER{};		// The center of the projection plane as a float so that the projection plane can move up and down based on fractional values
+	double DISTANCE_TO_PROJECTION_PLANE{};			// The distance from the player's eyes to the projection plane, useful because it allows us to use similar triangles to calculate wall heights
 
-	int fov{};							// The angle with which the player views the scene; the larger the field of view, the larger the amount of scene that is visible
-	double playerX{};					// X position of the player in units (NOT cell coordinates)
-	double playerY{};					// Y position of the player in units (NOT cell coordinates)
-	double playerA{};					// Angle of the player in degrees
-	int playerHeight{};					// Height of the player's eyes
-	double floatPlayerHeight{};			// Player height as a float for the same reason as floatProjectionPlaneCenter
-	double playerRadius{};				// Radius of the player in units (how much area the player takes up on the map
-	double playerSpeed{};				// How fast the player moves around the map
-	double playerTurnSpeed{};			// How fast the view of the player shifts left and right
-	double playerLookVerticalSpeed{};	// How fast the player can look up and down
-	double playerVerticalSpeed{};		// How fast the player can move up and down
+	int FOV{};							// The angle with which the player views the scene; the larger the field of view, the larger the amount of scene that is visible
+	double PLAYER_X{};					// X position of the player in units (NOT cell coordinates)
+	double PLAYER_Y{};					// Y position of the player in units (NOT cell coordinates)
+	double PLAYER_A{};					// Angle of the player in degrees
+	int PLAYER_HEIGHT{};				// Height of the player's eyes
+	double FLOAT_PLAYER_HEIGHT{};		// Player height as a float for the same reason as floatProjectionPlaneCenter
+	double PLAYER_RADIUS{};				// Radius of the player in units (how much area the player takes up on the map
+	double PLAYER_SPEED{};				// How fast the player moves around the map
+	double PLAYER_TURN_SPEED{};			// How fast the view of the player shifts left and right
+	double PLAYER_LOOK_VERTICAL_SPEED{};	// How fast the player can look up and down
+	double PLAYER_VERTICAL_SPEED{};		// How fast the player can move up and down
 
-	bool moveForward{};		// Is the player moving forwards?
-	bool moveBackward{};	// Is the player moving backwards?
-	bool moveUp{};			// Is the player moving up?
-	bool moveDown{};		// Is the player moving down?
-	bool lookLeft{};	    // Is the player looking left?
-	bool lookRight{};	    // Is the player looking right?
-	bool lookUp{};		    // Is the player looking up?
-	bool lookDown{};	    // Is the player looking down?
+	Player PLAYER{};
 
-	double previousTime{};
-	double currentTime{};
-	double deltaTime{};
-	double fps{};
-	double sumOfFps{};
-	int numFrames{};
+	bool MOVE_FORWARD{};		// Is the player moving forwards?
+	bool MOVE_BACKWARD{};	// Is the player moving backwards?
+	bool MOVE_UP{};			// Is the player moving up?
+	bool MOVE_DOWN{};		// Is the player moving down?
+	bool LOOK_LEFT{};	    // Is the player looking left?
+	bool LOOK_RIGHT{};	    // Is the player looking right?
+	bool LOOK_UP{};		    // Is the player looking up?
+	bool LOOK_DOWN{};	    // Is the player looking down?
+	bool ESCAPE{};
 
-	uint32_t* screen;		// Array of integers that contains the colors that will be output to the screen
+	double PREVIOUS_TIME{};
+	double CURRENT_TIME{};
+	double DELTA_TIME{};
+	double FPS{};
+	double SUM_OF_FPS{};
+	int NUM_FRAMES{};
 
-	bool isGameRunning{};
-	SDL_Window* win;
-	SDL_Renderer* renderTarget;
-	SDL_Event ev;
-	SDL_Texture* frameBuffer;
-	const Uint8* keyState;
+	uint32_t* SCREEN;		// Array of integers that contains the colors that will be output to the screen
+
+	bool IS_GAME_RUNNING{};
+	SDL_Window* WIN;
+	SDL_Renderer* RENDER_TARGET;
+	SDL_Event EV;
+	SDL_Texture* FRAME_BUFFER;
+	const Uint8* KEY_STATE;
 
 public:
 	GameWindow();		// Constructor for the GameWindow class
@@ -84,7 +88,10 @@ public:
 	void runSDLEventLoop();
 	void printScreenToWindow();
 	void update();
+	void render();
 	void keysPressed();
+	void mouseButtonDown();
+	void mouseMoved();
 	void run();
 
 	void drawFullFloor();
@@ -92,7 +99,8 @@ public:
 	void raycast();
 	void drawVerticalFloorSlice(int x, int startY, int endY, int floorHeight, double angle, Texture* texture);
 	void drawVerticalCeilingSlice(int x, int startY, int endY, int ceilingHeight, double angle, Texture* texture);
-	void drawWallSlice(int x, int startY, int endY, int cellSpaceColumn, int wallHeight, double light, Texture* texture);
+	void drawWallSlice(int x, int startY, int endY, int wallHeight, int cellSpaceColumn, double light, Texture* texture);
+	void drawVerticalFloorSliceFast(int x, int startY, int endY, int sliceHeight, double uX, double uY, double vX, double vY, Texture* texture);
 };
 #endif
 

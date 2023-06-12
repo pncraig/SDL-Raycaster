@@ -111,7 +111,7 @@ uint32_t Texture::getTexel(int x, int y)
 	}
 }
 
-uint32_t Texture::getTexel(float normX, float normY)
+uint32_t Texture::getTexel(double normX, double normY)
 {
 	int x{ static_cast<int>(normX * m_width) };
 	int y{ static_cast<int>(normY * m_height) };

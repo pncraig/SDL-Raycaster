@@ -17,6 +17,8 @@ namespace util
 	// Restrict a value between a minimum value and a maximum value
 	double clamp(double x, double lo, double hi);
 
+	double distance(double aX, double aY, double bX, double bY);
+
 	uint32_t calculateLighting(const uint32_t& color, double lighting);
 }
 

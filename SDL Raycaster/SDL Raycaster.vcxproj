@@ -153,16 +153,28 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Game.cpp" />
     <ClCompile Include="GameWindow.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Screen.cpp" />
+    <ClCompile Include="Map.cpp" />
+    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="RaycastEngine.cpp" />
+    <ClCompile Include="RaycastRenderer.cpp" />
+    <ClCompile Include="ScreenHandler.cpp" />
     <ClCompile Include="Sprites.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="Utility.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DataTypes.h" />
+    <ClInclude Include="Game.h" />
     <ClInclude Include="GameWindow.h" />
-    <ClInclude Include="Screen.h" />
+    <ClInclude Include="Map.h" />
+    <ClInclude Include="Player.h" />
+    <ClInclude Include="RaycastEngine.h" />
+    <ClInclude Include="RaycastRenderer.h" />
+    <ClInclude Include="ScreenHandler.h" />
+    <ClInclude Include="Settings.h" />
     <ClInclude Include="Sprites.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="Utility.h" />

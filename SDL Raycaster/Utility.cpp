@@ -36,6 +36,11 @@ double util::clamp(double x, double lo, double hi)
 	return x;
 }
 
+double util::distance(double aX, double aY, double bX, double bY)
+{
+	return sqrt((aX - bX) * (aX - bX) + (aY - bY) * (aY - bY));
+}
+
 uint32_t util::calculateLighting(const uint32_t& color, double lighting)
 {
 	uint32_t red{ color >> 24 };
